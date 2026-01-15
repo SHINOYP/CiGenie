@@ -1,25 +1,10 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Terminal, Cpu, Share2, Activity, Play } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Cpu, Activity, Play, Shield } from 'lucide-react';
+import { getExecutionDetails, analyzeIntent, executePlan } from '../services/api';
 
-const mockLogs = `[INFO] Starting build for project: Payment API
-[INFO] Branch: fix/stripe-webhook (d9e8f7)
-[INFO] Installing dependencies...
-[INFO] Package.json found. Running 'npm install'
-[SUCCESS] Dependencies installed in 12s.
-[INFO] Running tests...
-[INFO] Test Suite 1: Authentication - PASSED
-[INFO] Test Suite 2: Payment Processing - PASSED
-[INFO] Test Suite 3: Webhook Handling - STARTED
-[ERROR] Test failed: "Should validate signature header"
-[ERROR] Expected 200, but got 401.
-[ERROR] Error: Invalid Stripe Signature.
-[INFO] Test Suite 3: Webhook Handling - FAILED
-[INFO] Build Failed.
-`;
-
-const AIDetailCard = () => (
-    <div className="bg-surface border border-indigo-500/30 rounded-xl p-6 relative overflow-hidden">
+const AIDetailCard = ({ plan, status }) => (
+    <div className="bg-surface border border-indigo-500/30 rounded-xl p-6 relative overflow-hidden mb-6">
         <div className="absolute top-0 right-0 p-4 opacity-50">
             <Cpu size={100} className="text-indigo-500/10" />
         </div>
@@ -29,83 +14,127 @@ const AIDetailCard = () => (
                 <Activity size={24} />
             </div>
             <div>
-                <h3 className="text-lg font-bold text-white">AI Analysis</h3>
-                <p className="text-xs text-indigo-300">Powered by Gemini Pro</p>
+                <h3 className="text-lg font-bold text-white">AI Decision Context</h3>
+                <p className="text-xs text-indigo-300">Analysis for {plan?.action} to {plan?.targetEnv}</p>
             </div>
         </div>
 
         <div className="space-y-4 relative z-10">
             <div className="bg-slate-900/50 p-4 rounded-lg border border-indigo-500/20">
-                <h4 className="text-sm font-semibold text-indigo-200 mb-2">Root Cause Identified</h4>
-                <p className="text-sm text-gray-300 leading-relaxed">
-                    The build failed due to a <b>401 Unauthorized</b> error in the <code>Webhook Handling</code> test suite. 
-                    The specific error <code>Invalid Stripe Signature</code> suggests that the Mock Stripe Secret in your test environment variables does not match the signature generator.
-                </p>
+                <h4 className="text-sm font-semibold text-indigo-200 mb-2">Execution Reasoning</h4>
+                <ul className="space-y-2">
+                    {plan?.reasoning?.map((r, i) => (
+                        <li key={i} className="text-sm text-gray-300 flex items-start space-x-2">
+                            <CheckCircle size={14} className="mt-1 text-indigo-400 shrink-0" />
+                            <span>{r}</span>
+                        </li>
+                    ))}
+                </ul>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-slate-900/50 p-4 rounded-lg border border-indigo-500/20">
-                     <h4 className="text-xs font-semibold text-green-400 uppercase tracking-wider mb-2">Recommended Action</h4>
+            {status === 'FAILED' && (
+                <div className="bg-red-500/10 p-4 rounded-lg border border-red-500/20">
+                     <h4 className="text-sm font-semibold text-red-400 mb-2">Failure Analysis</h4>
                      <p className="text-sm text-gray-300">
-                        Update the <code>STRIPE_WEBHOOK_SECRET</code> in your <code>.env.test</code> file to match the mock signature used in <code>tests/webhook.test.js</code>.
+                        The build failed during the testing phase. Possible root cause: <b>Integration Test Timeout</b>.
                      </p>
                 </div>
-                <div className="bg-slate-900/50 p-4 rounded-lg border border-indigo-500/20">
-                     <h4 className="text-xs font-semibold text-yellow-400 uppercase tracking-wider mb-2">Risk Assessment</h4>
-                     <p className="text-sm text-gray-300">
-                        <b>Low Risk.</b> This is a configuration issue in the test environment and does not affect production unless the same secret is mismatched there.
-                     </p>
-                </div>
-            </div>
-
-            <div className="flex space-x-3 mt-4">
-                <button className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex justify-center items-center space-x-2">
-                    <Play size={16} />
-                    <span>Retry with Fix</span>
-                </button>
-                <button className="flex-1 bg-slate-800 hover:bg-slate-700 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    Dismiss
-                </button>
-            </div>
+            )}
         </div>
     </div>
 );
 
 const BuildDetails = () => {
   const { id } = useParams();
-  const [activeTab, setActiveTab] = useState('logs');
+  const navigate = useNavigate();
+  const [execution, setExecution] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [retrying, setRetrying] = useState(false);
+
+  useEffect(() => {
+    let interval;
+    const fetchDetails = async () => {
+        try {
+            const data = await getExecutionDetails(id);
+            setExecution(data);
+            if (data.status === 'SUCCESS' || data.status === 'FAILED') {
+                 setLoading(false);
+                 if (interval) clearInterval(interval);
+            }
+        } catch (e) {
+            console.error(e);
+            setLoading(false);
+        }
+    };
+
+    fetchDetails();
+    interval = setInterval(fetchDetails, 2000); // Poll for updates
+    return () => clearInterval(interval);
+  }, [id]);
+
+  const handleRetry = async () => {
+      if (!execution) return;
+      setRetrying(true);
+      try {
+          // Re-analyze intent to get a new plan (or just reuse, but analysis is safer)
+          const newPlan = await analyzeIntent(execution.projectId, {
+              action: execution.plan.action,
+              environment: execution.plan.targetEnv,
+              branch: execution.plan.jenkinsParams.BRANCH
+          });
+          const result = await executePlan(newPlan);
+          navigate(`/build/${result.executionId}`);
+      } catch (e) {
+          alert('Retry failed: ' + e.message);
+          setRetrying(false);
+      }
+  };
+
+  if (!execution && loading) return <div className="p-8 text-center">Loading execution details...</div>;
+  if (!execution) return <div className="p-8 text-center text-red-400">Execution not found</div>;
 
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <Link to="/builds" className="text-gray-400 hover:text-white flex items-center mb-4 transition-colors">
+        <Link to="/" className="text-gray-400 hover:text-white flex items-center mb-4 transition-colors">
           <ArrowLeft size={16} className="mr-2" />
-          Back to Builds
+          Back to Control Plane
         </Link>
         <div className="flex justify-between items-start">
             <div>
                 <div className="flex items-center space-x-4">
-                    <h1 className="text-3xl font-bold">Build #{id || '1023'}</h1>
-                    <span className="px-3 py-1 bg-danger/10 text-danger rounded-full text-sm font-medium flex items-center space-x-1">
-                        <XCircle size={14} />
-                        <span>Failed</span>
+                    <h1 className="text-3xl font-bold">
+                        {execution.plan?.action} <span className="text-gray-500">to</span> {execution.plan?.targetEnv}
+                    </h1>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${
+                        execution.status === 'SUCCESS' ? 'bg-success/10 text-success' :
+                        execution.status === 'FAILED' ? 'bg-danger/10 text-danger' :
+                        'bg-yellow-500/10 text-yellow-500'
+                    }`}>
+                        {execution.status === 'SUCCESS' ? <CheckCircle size={14} /> : 
+                         execution.status === 'FAILED' ? <XCircle size={14} /> : <Clock size={14} />}
+                        <span>{execution.status}</span>
                     </span>
                 </div>
                 <p className="text-gray-400 mt-2 flex items-center space-x-4">
-                    <span>Repository: <b>Payment API</b></span>
+                    <span>Project: <b>{execution.plan?.projectId}</b></span>
                     <span>•</span>
-                    <span>Commit: <span className="font-mono text-gray-300">z9y8x7w</span></span>
+                    <span>ID: <span className="font-mono text-gray-300">{execution.id}</span></span>
                     <span>•</span>
-                    <span className="flex items-center"><Clock size={14} className="mr-1"/> 1m 45s</span>
+                    <span>{new Date(execution.startTime).toLocaleString()}</span>
                 </p>
             </div>
             <div className="flex space-x-3">
-                <button className="bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-                    Rebuild
-                </button>
-                <button className="bg-primary hover:bg-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white">
-                    Deploy Anyway
-                </button>
+                {execution.status === 'FAILED' && (
+                    <button 
+                        onClick={handleRetry}
+                        disabled={retrying}
+                        className="bg-primary hover:bg-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white flex items-center space-x-2"
+                    >
+                        <Play size={16} />
+                        <span>{retrying ? 'Retrying...' : 'Retry Intent'}</span>
+                    </button>
+                )}
             </div>
         </div>
       </div>
@@ -113,60 +142,33 @@ const BuildDetails = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
             <div className="bg-surface rounded-xl border border-slate-700 overflow-hidden">
-                <div className="flex border-b border-slate-700">
-                    <button 
-                        onClick={() => setActiveTab('logs')}
-                        className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'logs' ? 'border-primary text-white' : 'border-transparent text-gray-400 hover:text-white'
-                        }`}
-                    >
-                        Console Output
-                    </button>
-                    <button 
-                         onClick={() => setActiveTab('artifacts')}
-                         className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'artifacts' ? 'border-primary text-white' : 'border-transparent text-gray-400 hover:text-white'
-                        }`}
-                    >
-                        Artifacts
-                    </button>
+                <div className="p-4 border-b border-slate-700 font-semibold">
+                    Execution Logs
                 </div>
-                
-                <div className="p-0">
-                    {activeTab === 'logs' && (
-                        <div className="bg-[#0c131f] p-4 overflow-x-auto">
-                            <pre className="font-mono text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
-                                {mockLogs}
-                            </pre>
-                        </div>
-                    )}
-                    {activeTab === 'artifacts' && (
-                        <div className="p-8 text-center text-gray-500 text-sm">
-                            No artifacts generated for this build.
-                        </div>
+                <div className="bg-[#0c131f] p-4 h-[400px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed">
+                    {execution.logs?.length === 0 ? (
+                        <span className="text-gray-600">Waiting for logs...</span>
+                    ) : (
+                        execution.logs.map((log, i) => (
+                            <div key={i}>{log}</div>
+                        ))
                     )}
                 </div>
             </div>
         </div>
 
         <div className="space-y-6">
-            <AIDetailCard />
+            <AIDetailCard plan={execution.plan} status={execution.status} />
             
             <div className="bg-surface rounded-xl border border-slate-700 p-6">
-                <h3 className="font-semibold text-sm mb-4 uppercase text-gray-400 tracking-wider">Build Info</h3>
-                <div className="space-y-4 text-sm">
-                    <div className="flex justify-between">
-                        <span className="text-gray-500">Triggered By</span>
-                        <span className="text-white">Webhook (GitHub)</span>
-                    </div>
-                    <div className="flex justify-between">
-                        <span className="text-gray-500">Branch</span>
-                        <span className="text-white font-mono">fix/stripe-webhook</span>
-                    </div>
-                     <div className="flex justify-between">
-                        <span className="text-gray-500">Agent</span>
-                        <span className="text-white">Jenkins-Node-01</span>
-                    </div>
+                <h3 className="font-semibold text-sm mb-4 uppercase text-gray-400 tracking-wider">Parameters</h3>
+                <div className="space-y-2 text-sm">
+                    {Object.entries(execution.plan?.jenkinsParams || {}).map(([key, val]) => (
+                        <div key={key} className="flex justify-between">
+                            <span className="text-gray-500">{key}</span>
+                            <span className="text-white font-mono">{val}</span>
+                        </div>
+                    ))}
                 </div>
             </div>
         </div>
