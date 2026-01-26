@@ -1,8 +1,8 @@
 const axios = require('axios');
 
 const BASE_URL = process.env.JENKINS_URL || 'http://localhost:8080';
-const USER = process.env.JENKINS_USER || 'admin';
-const TOKEN = process.env.JENKINS_TOKEN || '11441f6a3209e242fff5e32faa529370ea';
+const USER = 'shino';
+const TOKEN = '11777f7394135a5b7952f12c59b39f1053';
 
 const getAuthHeader = () => {
   return {
@@ -11,25 +11,70 @@ const getAuthHeader = () => {
 };
 
 /**
+ * Fetches Jenkins crumb for CSRF protection
+ */
+const getCrumb = async () => {
+  try {
+    const response = await axios.get(`${BASE_URL}/crumbIssuer/api/json`, {
+      headers: getAuthHeader(),
+    });
+    return {
+      [response.data.crumbRequestField]: response.data.crumb
+    };
+  } catch (error) {
+    console.warn('CSRF protection may not be enabled');
+    return {};
+  }
+};
+
+/**
  * Triggers a build for a specific job.
- * @param {string} jobName
+ * @param {string} jobName - Use format "folder/job" for jobs in folders
  * @param {object} params - Build parameters
  */
 const triggerBuild = async (jobName, params = {}) => {
+  // Encode job name properly (handles spaces and special chars)
+  const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
+  
+  // Choose endpoint based on whether params exist
+  const endpoint = Object.keys(params).length > 0 
+    ? 'buildWithParameters' 
+    : 'build';
+
+  // Get CSRF crumb
+  const crumb = await getCrumb();
+
   try {
-    const url = `${BASE_URL}/job/${jobName}/buildWithParameters`;
-    // Jenkins expects form-data or query params for buildWithParameters
-    const queryParams = new URLSearchParams(params).toString();
+    const url = `${BASE_URL}/job/${encodedJobName}/${endpoint}`;
     
-    console.log(`Triggering Jenkins build: ${url}?${queryParams}`);
+    console.log(`Triggering Jenkins build: ${url}`);
     
-    const response = await axios.post(`${url}?${queryParams}`, {}, {
-      headers: getAuthHeader(),
+    const response = await axios.post(url, null, {
+      headers: {
+        ...getAuthHeader(),
+        ...crumb
+      },
+      params: params, // axios will handle URL encoding
     });
     
     return { success: true, status: response.status };
   } catch (error) {
-    console.error('Failed to trigger Jenkins build:', error.message);
+    // Retry logic: If job is not parameterized (e.g. first run), fallback to simple build
+    if (error.response && error.response.status === 400 && endpoint === 'buildWithParameters') {
+       console.log('Job not parameterized. Retrying with simple /build...');
+       const simpleUrl = `${BASE_URL}/job/${encodedJobName}/build`;
+       try {
+           const retryResponse = await axios.post(simpleUrl, null, {
+               headers: { ...getAuthHeader(), ...crumb }
+           });
+           return { success: true, status: retryResponse.status };
+       } catch (retryError) {
+           console.error('Retry failed:', retryError.message);
+           throw retryError;
+       }
+    }
+    
+    console.error('Failed to trigger Jenkins build:', error.response?.data || error.message);
     throw new Error(`Jenkins Build Trigger Failed: ${error.message}`);
   }
 };
@@ -41,13 +86,15 @@ const triggerBuild = async (jobName, params = {}) => {
  */
 const getBuildLogs = async (jobName, buildId) => {
   try {
-    const url = `${BASE_URL}/job/${jobName}/${buildId}/consoleText`;
+    const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
+    const url = `${BASE_URL}/job/${encodedJobName}/${buildId}/consoleText`;
+    
     const response = await axios.get(url, {
       headers: getAuthHeader(),
     });
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch build logs:', error.message);
+    console.error('Failed to fetch build logs:', error.response?.data || error.message);
     throw new Error(`Fetch Logs Failed: ${error.message}`);
   }
 };
@@ -58,20 +105,110 @@ const getBuildLogs = async (jobName, buildId) => {
  * @param {number} buildId 
  */
 const getBuildDetails = async (jobName, buildId) => {
-    try {
-    const url = `${BASE_URL}/job/${jobName}/${buildId}/api/json`;
+  try {
+    const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
+    const url = `${BASE_URL}/job/${encodedJobName}/${buildId}/api/json`;
+    
     const response = await axios.get(url, {
       headers: getAuthHeader(),
     });
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch build details:', error.message);
+    console.error('Failed to fetch build details:', error.response?.data || error.message);
     throw new Error(`Fetch Build Details Failed: ${error.message}`);
+  }
+};
+
+/**
+ * Checks if a job exists in Jenkins.
+ * @param {string} jobName 
+ * @returns {Promise<boolean>}
+ */
+const checkJobExists = async (jobName) => {
+  try {
+    const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
+    const url = `${BASE_URL}/job/${encodedJobName}/api/json`;
+    
+    await axios.get(url, { headers: getAuthHeader() });
+    return true;
+  } catch (error) {
+    if (error.response && error.response.status === 404) {
+      return false;
+    }
+    throw error;
+  }
+};
+
+/**
+ * Creates a new Pipeline job in Jenkins pointing to a Git repo.
+ * @param {string} jobName 
+ * @param {string} gitUrl 
+ */
+const createJob = async (jobName, gitUrl) => {
+  try {
+    const crumb = await getCrumb();
+    const headers = {
+      ...getAuthHeader(),
+      ...crumb,
+      'Content-Type': 'application/xml'
+    };
+
+    const configXml = `<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job">
+  <description>Auto-generated by CiGenie for ${gitUrl}</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>${gitUrl}</url>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>*/main</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <submoduleCfg class="list"/>
+      <extensions/>
+    </scm>
+    <scriptPath>Jenkinsfile</scriptPath>
+    <lightweight>true</lightweight>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>`;
+
+    // Note: To support folders, we'd need more logic. This assumes top-level job.
+    // For now we strip any folder prefix if present, or handle simple names.
+    // Jenkins createItem API takes 'name' query param.
+    // If jobName has slashes, it implies existing folders, but creating them recursively is complex.
+    // We will assume flat structure for MVP or pre-existing folders.
+    
+    // Simplification: Just take the last part if it looks like a path, 
+    // BUT user's current logic uses "pipeline-RepoName" which is flat.
+    const actualJobName = jobName.includes('/') ? jobName.split('/').pop() : jobName;
+
+    const url = `${BASE_URL}/createItem?name=${encodeURIComponent(actualJobName)}`;
+    
+    console.log(`[JenkinsService] Creating new job: ${actualJobName} -> ${gitUrl}`);
+    
+    await axios.post(url, configXml, { headers });
+    return true;
+
+  } catch (error) {
+    console.error('Failed to create Jenkins job:', error.response?.data || error.message);
+    throw new Error(`Job Creation Failed: ${error.message}`);
   }
 };
 
 module.exports = {
   triggerBuild,
   getBuildLogs,
-  getBuildDetails
+  getBuildDetails,
+  checkJobExists,
+  createJob
 };

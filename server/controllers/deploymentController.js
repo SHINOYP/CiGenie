@@ -88,6 +88,24 @@ const executePlan = async (req, res) => {
     if (useRealJenkins) {
         console.log(`[DeploymentController] Triggering REAL Jenkins job: ${plan.jenkinsJob}`);
         try {
+            // --- Auto-Provisioning Logic Start ---
+            const jobExists = await jenkinsService.checkJobExists(plan.jenkinsJob);
+            
+            if (!jobExists) {
+                console.log(`[DeploymentController] Job ${plan.jenkinsJob} not found. Attempting to auto-create...`);
+                
+                // We need the cloneUrl. Fetch project from store.
+                const project = store.getProjects().find(p => p.id === plan.projectId);
+                
+                if (project && project.cloneUrl) {
+                     await jenkinsService.createJob(plan.jenkinsJob, project.cloneUrl);
+                     console.log(`[DeploymentController] Job ${plan.jenkinsJob} created successfully.`);
+                } else {
+                    throw new Error(`Cannot create job: Project or Clone URL not found for ${plan.projectId}`);
+                }
+            }
+            // --- Auto-Provisioning Logic End ---
+
             await jenkinsService.triggerBuild(plan.jenkinsJob, plan.jenkinsParams);
             executionRecord.status = 'QUEUED';
             executionRecord.logs.push(`[${new Date().toISOString()}] [INFO] Jenkins Build Triggered Successfully`);
