@@ -1,7 +1,41 @@
 const axios = require('axios');
 const store = require('../models/store');
 
+
 const BASE_URL = 'https://api.github.com';
+
+/**
+ * Fetches package.json content for a repo to detect project type
+ */
+const fetchPackageJson = async (owner, repo, token) => {
+    try {
+        const headers = { 'Accept': 'application/vnd.github.v3.raw' };
+        if (token) headers['Authorization'] = `token ${token}`;
+
+        const url = `${BASE_URL}/repos/${owner}/${repo}/contents/package.json`;
+        console.log(`[GithubService] Checking package.json for ${repo}...`);
+        
+        const response = await axios.get(url, { headers });
+        return response.data;
+    } catch (error) {
+        // It's okay if package.json doesn't exist (might not be a JS project)
+        return null;
+    }
+};
+
+/**
+ * Detects project type based on dependencies
+ */
+const detectProjectType = (packageJson) => {
+    if (!packageJson || !packageJson.dependencies) return 'UNKNOWN';
+    
+    const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+    
+    if (deps['react'] || deps['next'] || deps['vite']) return 'REACT';
+    if (deps['express'] || deps['fastify'] || deps['nestjs']) return 'NODE';
+    
+    return 'NODE'; // Default fallback for other JS projects
+};
 
 const fetchProjects = async () => {
     const username = process.env.GITHUB_USERNAME;
@@ -26,17 +60,26 @@ const fetchProjects = async () => {
         const repos = response.data;
         
         // Map GitHub repos to our project structure
-        const projects = repos.map(repo => ({
-            id: `gh_${repo.id}`,
-            name: repo.name,
-            repo: repo.name, // For display
-            cloneUrl: repo.clone_url,
-            description: repo.description,
-            defaultBranch: repo.default_branch,
-            jenkinsJob: `pipeline-${repo.name}`, // Assumption: Jenkins job matches repo name
-            environments: ['dev', 'staging', 'production'], // Default envs
-            updatedAt: repo.updated_at
-        }));
+        // We use Promise.all to fetch package.json for all repos in parallel
+        const projectPromises = repos.map(async (repo) => {
+            const packageJson = await fetchPackageJson(repo.owner.login, repo.name, process.env.GITHUB_TOKEN);
+            const projectType = detectProjectType(packageJson);
+
+            return {
+                id: `gh_${repo.id}`,
+                name: repo.name,
+                repo: repo.name, // For display
+                cloneUrl: repo.clone_url,
+                description: repo.description,
+                defaultBranch: repo.default_branch,
+                jenkinsJob: `pipeline-${repo.name}`,
+                type: projectType, // NEW: Store detected type
+                environments: ['dev', 'staging', 'production'],
+                updatedAt: repo.updated_at
+            };
+        });
+
+        const projects = await Promise.all(projectPromises);
 
         console.log(`[GithubService] Fetched ${projects.length} projects.`);
         store.setProjects(projects);

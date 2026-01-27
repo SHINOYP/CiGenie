@@ -2,46 +2,10 @@ const decisionService = require('../services/decisionService');
 const jenkinsService = require('../services/jenkinsService');
 const store = require('../models/store');
 const githubService = require('../services/githubService');
+const simulationService = require('../services/simulationService');
 
 // Simple UUID fallback
 const generateId = () => Math.random().toString(36).substring(2, 15);
-
-// Helper to simulate build progress (since we don't have real Jenkins callbacks yet)
-const simulateExecution = (executionId) => {
-  const steps = [
-      { progress: 10, msg: '[INFO] Initializing decision engine...' },
-      { progress: 30, msg: '[INFO] Jenkins job triggered successfully.' },
-      { progress: 50, msg: '[INFO] Running tests... (Mocking wait)' },
-      { progress: 80, msg: '[INFO] Tests passed. Deploying artifacts...' },
-      { progress: 100, msg: '[SUCCESS] Deployment complete.' }
-  ];
-
-  let currentStep = 0;
-  const interval = setInterval(() => {
-      const exec = store.getExecution(executionId);
-      if (!exec) { clearInterval(interval); return; }
-
-      if (currentStep >= steps.length) {
-          exec.status = 'SUCCESS';
-          clearInterval(interval);
-          return;
-      }
-
-      const step = steps[currentStep];
-      exec.logs.push(`[${new Date().toISOString()}] ${step.msg}`);
-      
-      // Randomly fail sometimes for demo
-      if (currentStep === 2 && Math.random() > 0.8) {
-          exec.status = 'FAILED';
-          exec.logs.push(`[${new Date().toISOString()}] [ERROR] Integration tests failed!`);
-          exec.logs.push(`[${new Date().toISOString()}] [AI] Analyzing failure patterns...`);
-          clearInterval(interval);
-          return;
-      }
-
-      currentStep++;
-  }, 2000);
-};
 
 // GET /api/projects
 const getProjects = async (req, res) => {
@@ -98,10 +62,17 @@ const executePlan = async (req, res) => {
                 const project = store.getProjects().find(p => p.id === plan.projectId);
                 
                 if (project && project.cloneUrl) {
-                     await jenkinsService.createJob(plan.jenkinsJob, project.cloneUrl);
+                     await jenkinsService.createJob(plan.jenkinsJob, project.cloneUrl, project.type);
                      console.log(`[DeploymentController] Job ${plan.jenkinsJob} created successfully.`);
                 } else {
                     throw new Error(`Cannot create job: Project or Clone URL not found for ${plan.projectId}`);
+                }
+            } else {
+                // NEW: Ensure the job config is up to date (Migration from SCM to Inline)
+                const project = store.getProjects().find(p => p.id === plan.projectId);
+                if (project && project.cloneUrl) {
+                     console.log(`[DeploymentController] Job ${plan.jenkinsJob} exists. Updating config...`);
+                     await jenkinsService.updateJob(plan.jenkinsJob, project.cloneUrl, project.type);
                 }
             }
             // --- Auto-Provisioning Logic End ---
@@ -117,7 +88,7 @@ const executePlan = async (req, res) => {
     } else {
         // 2. Simulate Progress
         console.log(`[DeploymentController] Simulating execution for: ${executionId}`);
-        simulateExecution(executionId);
+        simulationService.simulateExecution(executionId);
     }
 
     res.json({ executionId, status: executionRecord.status });

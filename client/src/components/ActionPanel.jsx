@@ -66,9 +66,17 @@ const ActionPanel = () => {
         {selectedProject && (() => {
             const proj = projects.find(p => p.id === selectedProject);
             return proj ? (
-                <div className="flex-1 flex flex-col justify-center text-sm px-4 border-l border-slate-700">
-                    <div className="text-gray-400 text-xs">{proj.description || 'No description provided'}</div>
-                    <a href={proj.cloneUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline text-xs truncate">
+                <div className="flex-1 flex flex-col justify-center text-xs px-4 border-l border-slate-700">
+                    <div className="flex items-center space-x-2 mb-1">
+                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${
+                             proj.type === 'REACT' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 
+                             proj.type === 'NODE' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-400'
+                         }`}>
+                             {proj.type || 'UNKNOWN'}
+                         </span>
+                         <span className="text-gray-400 truncate">{proj.description || 'No description provided'}</span>
+                    </div>
+                    <a href={proj.cloneUrl} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline truncate">
                         {proj.repo}
                     </a>
                 </div>

@@ -18,7 +18,8 @@ const analyzeIntent = async (projectId, intent) => {
     reasoning: [],
     riskFlags: [],
     jenkinsJob: project.jenkinsJob,
-    jenkinsParams: {}
+    jenkinsParams: {},
+    projectType: project.type
   };
 
   // Logic based on action
