@@ -42,9 +42,46 @@ app.get('/', (req, res) => {
 
 // Initialize GitHub Service
 const githubService = require('./services/githubService');
-githubService.fetchProjects().then(() => {
+const jenkinsService = require('./services/jenkinsService');
+const store = require('./models/store');
+
+(async () => {
+    await githubService.fetchProjects();
     console.log('Initial project fetch complete');
-});
+    
+    // Auto-sync Jenkins builds if real Jenkins is enabled
+    if (process.env.USE_REAL_JENKINS === 'true') {
+        try {
+            console.log('[Startup] Syncing Jenkins build history...');
+            const jenkinsBuilds = await jenkinsService.getAllBuildsHistory();
+            
+            jenkinsBuilds.forEach(jb => {
+                const existing = store.getExecution(jb.id);
+                if (!existing) {
+                    store.addExecution({
+                        id: jb.id,
+                        projectId: jb.jobName,
+                        status: jb.status === 'SUCCESS' ? 'SUCCESS' : jb.status === 'FAILURE' ? 'FAILED' : 'PENDING',
+                        stage: 'COMPLETED',
+                        logs: [`[INFO] Synced from Jenkins build #${jb.buildNumber}`],
+                        plan: {
+                            action: 'JENKINS_BUILD',
+                            targetEnv: 'N/A',
+                            projectId: jb.jobName,
+                            jenkinsParams: {}
+                        },
+                        startTime: jb.startTime,
+                        endTime: jb.endTime
+                    });
+                }
+            });
+            
+            console.log(`[Startup] Synced ${jenkinsBuilds.length} builds from Jenkins`);
+        } catch (error) {
+            console.error('[Startup] Failed to sync Jenkins history:', error.message);
+        }
+    }
+})();
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

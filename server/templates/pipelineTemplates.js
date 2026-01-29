@@ -2,10 +2,6 @@ const getReactPipeline = () => `
 pipeline {
     agent any
 
-    tools {
-        nodejs 'NodeJS'
-    }
-
     parameters {
         string(name: 'GIT_REPO', description: 'Git repository URL')
         string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
@@ -20,19 +16,32 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm ci'
+                script {
+                    if (isUnix()) {
+                        sh 'npm ci || npm install'
+                    } else {
+                        bat 'npm ci || npm install'
+                    }
+                }
             }
         }
 
         stage('Build') {
             steps {
-                sh 'npm run build'
+                script {
+                    if (isUnix()) {
+                        sh 'npm run build'
+                    } else {
+                        bat 'npm run build'
+                    }
+                }
             }
         }
 
         stage('Deploy') {
             steps {
                 echo 'Deploying React App...'
+                echo 'Build artifacts ready in dist/build folder'
             }
         }
     }
@@ -44,10 +53,6 @@ const getNodePipeline = () => `
 pipeline {
     agent any
 
-    tools {
-        nodejs 'NodeJS'
-    }
-
     parameters {
         string(name: 'GIT_REPO', description: 'Git repository URL')
         string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
@@ -62,7 +67,13 @@ pipeline {
 
         stage('Install Dependencies') {
             steps {
-                sh 'npm ci'
+                script {
+                    if (isUnix()) {
+                        sh 'npm ci || npm install'
+                    } else {
+                        bat 'npm ci || npm install'
+                    }
+                }
             }
         }
 

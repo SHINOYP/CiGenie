@@ -1,21 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { getHistory } from '../services/api';
+import React from 'react';
 
-const RecentActivity = () => {
-  const [activities, setActivities] = useState([]);
-
-  useEffect(() => {
-    // Poll for history updates for now
-    const fetchHistory = async () => {
-        try {
-            const data = await getHistory();
-            setActivities(data);
-        } catch (e) { console.error(e); }
-    };
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 5000);
-    return () => clearInterval(interval);
-  }, []);
+const RecentActivity = ({ activities = [], projects = {} }) => {
+  // fetching moved to parent Dashboard.jsx
 
   return (
     <div className="bg-surface rounded-xl border border-slate-700 overflow-hidden">
@@ -35,10 +21,10 @@ const RecentActivity = () => {
                 item.status === 'RUNNING' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-500'
               }`} />
               <div>
-                <p className="font-medium text-sm">{item.plan.projectId}</p>
+                <p className="font-medium text-sm">{projects[item.projectId] || item.projectId}</p>
                 <div className="flex items-center space-x-2 text-xs text-gray-400">
-                    <span className="uppercase font-bold text-gray-500">{item.plan.action}</span>
-                    <span>to {item.plan.targetEnv}</span>
+                    <span className="uppercase font-bold text-gray-500">{item.plan?.action || 'BUILD'}</span>
+                    <span>to {item.plan?.targetEnv || 'N/A'}</span>
                 </div>
               </div>
             </div>

@@ -252,6 +252,51 @@ const getJobDetails = async (jobName) => {
   }
 };
 
+/**
+ * Fetches build history for all jobs in Jenkins.
+ * Returns array of build objects with normalized format.
+ */
+const getAllBuildsHistory = async () => {
+  try {
+    // Get all jobs
+    const url = `${BASE_URL}/api/json?tree=jobs[name,url]`;
+    const response = await axios.get(url, { headers: getAuthHeader() });
+    const jobs = response.data.jobs || [];
+    
+    const allBuilds = [];
+    
+    // For each job, get its builds
+    for (const job of jobs) {
+      try {
+        const jobUrl = `${BASE_URL}/job/${encodeURIComponent(job.name)}/api/json?tree=builds[number,result,timestamp,duration,url]`;
+        const jobResponse = await axios.get(jobUrl, { headers: getAuthHeader() });
+        const builds = jobResponse.data.builds || [];
+        
+        // Normalize build data
+        builds.forEach(build => {
+          allBuilds.push({
+            id: `jenkins_${job.name}_${build.number}`,
+            jobName: job.name,
+            buildNumber: build.number,
+            status: build.result || 'IN_PROGRESS',
+            startTime: new Date(build.timestamp),
+            endTime: build.duration > 0 ? new Date(build.timestamp + build.duration) : null,
+            duration: build.duration,
+            url: build.url
+          });
+        });
+      } catch (jobError) {
+        console.warn(`Failed to fetch builds for job ${job.name}:`, jobError.message);
+      }
+    }
+    
+    return allBuilds;
+  } catch (error) {
+    console.error('Failed to fetch Jenkins build history:', error.message);
+    return [];
+  }
+};
+
 module.exports = {
   triggerBuild,
   getBuildLogs,
@@ -259,5 +304,6 @@ module.exports = {
   checkJobExists,
   createJob,
   updateJob,
-  getJobDetails
+  getJobDetails,
+  getAllBuildsHistory
 };

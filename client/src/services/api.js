@@ -29,3 +29,18 @@ export const getExecutionDetails = async (id) => {
     const response = await axios.get(`${API_URL}/deploy/execution/${id}`);
     return response.data;
 };
+// Dashboard API calls
+export const getDashboardStats = async () => {
+    const response = await axios.get(`${API_URL}/deploy/stats`);
+    return response.data;
+};
+
+export const getSystemStatus = async () => {
+    const response = await axios.get(`${API_URL}/deploy/status`);
+    return response.data;
+};
+
+export const getAIInsights = async () => {
+    const response = await axios.get(`${API_URL}/deploy/insights`);
+    return response.data;
+};

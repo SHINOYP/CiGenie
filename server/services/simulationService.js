@@ -21,6 +21,7 @@ const simulateExecution = (executionId) => {
 
         if (currentStep >= steps.length) {
             exec.status = 'SUCCESS';
+            exec.endTime = new Date();
             clearInterval(interval);
             return;
         }
@@ -33,6 +34,7 @@ const simulateExecution = (executionId) => {
             exec.status = 'FAILED';
             exec.logs.push(`[${new Date().toISOString()}] [ERROR] Integration tests failed!`);
             exec.logs.push(`[${new Date().toISOString()}] [AI] Analyzing failure patterns...`);
+            exec.endTime = new Date();
             clearInterval(interval);
             return;
         }
