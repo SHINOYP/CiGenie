@@ -18,18 +18,18 @@ const analyzeIntent = async (projectId, intent) => {
     reasoning: [],
     riskFlags: [],
     jenkinsJob: project.jenkinsJob,
-    jenkinsParams: {},
+    jenkinsParams: {
+      GIT_REPO: project.cloneUrl,
+      BRANCH: intent.branch || project.defaultBranch || 'main'
+    },
     projectType: project.type
   };
 
   // Logic based on action
   switch (intent.action) {
     case 'DEPLOY':
-      decision.jenkinsParams = {
-        ACTION: 'deploy',
-        ENV: intent.environment,
-        BRANCH: intent.branch || 'main'
-      };
+      decision.jenkinsParams.ACTION = 'deploy';
+      decision.jenkinsParams.ENV = intent.environment;
       decision.reasoning.push(`Standard deployment to ${intent.environment}.`);
       
       if (intent.environment === 'production') {
@@ -40,20 +40,16 @@ const analyzeIntent = async (projectId, intent) => {
       break;
 
     case 'ROLLBACK':
-      decision.jenkinsParams = {
-        ACTION: 'rollback',
-        ENV: intent.environment,
-        VERSION: intent.version || 'previous'
-      };
+      decision.jenkinsParams.ACTION = 'rollback';
+      decision.jenkinsParams.ENV = intent.environment;
+      decision.jenkinsParams.VERSION = intent.version || 'previous';
       decision.reasoning.push('Reverting to last stable version.');
       decision.riskFlags.push('ROLLBACK_ACTION');
       break;
 
     case 'TEST':
-      decision.jenkinsParams = {
-        ACTION: 'test',
-        SCOPE: 'full'
-      };
+      decision.jenkinsParams.ACTION = 'test';
+      decision.jenkinsParams.SCOPE = 'full';
       decision.reasoning.push('Running full test suite.');
       break;
 

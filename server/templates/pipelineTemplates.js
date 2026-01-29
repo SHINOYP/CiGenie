@@ -3,14 +3,25 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'GIT_REPO', description: 'Git repository URL')
+        string(name: 'GIT_REPO', defaultValue: '', description: 'Git repository URL')
         string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
+        string(name: 'ACTION', defaultValue: 'deploy', description: 'Action to perform')
+        string(name: 'ENV', defaultValue: 'dev', description: 'Target environment')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: params.BRANCH, url: params.GIT_REPO
+                script {
+                    def gitRepo = params.GIT_REPO ?: env.GIT_REPO ?: ''
+                    def gitBranch = params.BRANCH ?: env.BRANCH ?: 'main'
+                    
+                    if (gitRepo) {
+                        git branch: gitBranch, url: gitRepo
+                    } else {
+                        error('GIT_REPO parameter is required')
+                    }
+                }
             }
         }
 
@@ -40,7 +51,7 @@ pipeline {
 
         stage('Deploy') {
             steps {
-                echo 'Deploying React App...'
+                echo "Deploying React App to \${params.ENV}..."
                 echo 'Build artifacts ready in dist/build folder'
             }
         }
@@ -54,14 +65,25 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'GIT_REPO', description: 'Git repository URL')
+        string(name: 'GIT_REPO', defaultValue: '', description: 'Git repository URL')
         string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch')
+        string(name: 'ACTION', defaultValue: 'deploy', description: 'Action to perform')
+        string(name: 'ENV', defaultValue: 'dev', description: 'Target environment')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: params.BRANCH, url: params.GIT_REPO
+                script {
+                    def gitRepo = params.GIT_REPO ?: env.GIT_REPO ?: ''
+                    def gitBranch = params.BRANCH ?: env.BRANCH ?: 'main'
+                    
+                    if (gitRepo) {
+                        git branch: gitBranch, url: gitRepo
+                    } else {
+                        error('GIT_REPO parameter is required')
+                    }
+                }
             }
         }
 
@@ -79,7 +101,7 @@ pipeline {
 
         stage('Deploy & Restart') {
             steps {
-                echo 'Deploying Node App...'
+                echo "Deploying Node App to \${params.ENV}..."
                 echo 'Application restarted.'
             }
         }
