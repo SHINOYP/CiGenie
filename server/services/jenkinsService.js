@@ -1,8 +1,38 @@
 const axios = require('axios');
 
 const BASE_URL = process.env.JENKINS_URL || 'http://localhost:8080';
-const USER = 'shino';
-const TOKEN = '11777f7394135a5b7952f12c59b39f1053';
+const USER = 'krixhnna_';
+const TOKEN = '1155197bcbc5a8e4d5d853a7c159c59fb4';
+
+const {
+  JENKINS_BASE_URL,
+  JENKINS_USER,
+  JENKINS_API_TOKEN,
+  JENKINS_JOB_NAME
+} = process.env;
+
+const auth = {
+  username: JENKINS_USER,
+  password: JENKINS_API_TOKEN
+};
+
+const triggerTestJob = async ({ repoUrl, projectType }) => {
+  const url = `${JENKINS_BASE_URL}/job/${JENKINS_JOB_NAME}/buildWithParameters`;
+
+  await axios.post(url, null, {
+    auth,
+    params: {
+      REPO_URL: repoUrl,
+      PROJECT_TYPE: projectType || 'node'
+    }
+  });
+
+  return JENKINS_JOB_NAME;
+};
+
+module.exports = {
+  triggerTestJob
+};
 
 const getAuthHeader = () => {
   return {

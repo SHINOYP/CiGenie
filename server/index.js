@@ -2,10 +2,24 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
+
 const webhookRoutes = require('./routes/webhooks');
 
 const app = express();
-const PORT = process.env.PORT || 4040;
+app.use('/api/tests', require('./routes/tests'));
+
+const PORT = process.env.PORT || 4000;
+
+const server = app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${PORT} in use, trying ${PORT + 1}...`);
+    server.listen(PORT + 1, '0.0.0.0');
+  }
+});
 
 app.use(cors());
 app.use(express.json());

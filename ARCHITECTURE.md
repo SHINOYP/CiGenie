@@ -93,7 +93,7 @@ CiGenie/
 
 ### Environment Variables (`server/.env`)
 ```env
-PORT=5000
+PORT=4000
 GITHUB_USERNAME=your_user
 
 # Jenkins Integration

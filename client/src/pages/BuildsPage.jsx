@@ -30,7 +30,7 @@ const BuildsPage = () => {
     
     fetchData();
     // Poll for updates every 5 seconds
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(fetchData, 4000);
     return () => clearInterval(interval);
   }, []);
 

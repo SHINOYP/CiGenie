@@ -9,6 +9,25 @@ const ActionPanel = () => {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState(null);
   const [executing, setExecuting] = useState(false);
+  const runTests = async () => {
+  try {
+    await fetch('http://localhost:4000/api/tests/run', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        repoUrl: selectedProject.cloneUrl, // VERY IMPORTANT
+        projectType: selectedProject.type || 'node'
+      })
+    });
+
+    alert('Tests triggered in Jenkins 🚀');
+  } catch (err) {
+    console.error(err);
+    alert('Failed to trigger tests');
+  }
+};
 
   useEffect(() => {
     getProjects().then(setProjects).catch(console.error);
