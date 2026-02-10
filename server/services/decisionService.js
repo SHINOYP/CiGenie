@@ -8,19 +8,19 @@ const analyzeIntent = async (projectId, intent) => {
   const project = store.getProjects().find(p => p.id === projectId);
   if (!project) throw new Error('Project not found');
 
-  // Rule-based decision logic (Mocking AI)
+  // Rule-based decision logic
   const decision = {
     projectId,
     action: intent.action,
     targetEnv: intent.environment,
     timestamp: new Date(),
-    confidenceScore: 0.98, // High confidence for standard actions
     reasoning: [],
     riskFlags: [],
     jenkinsJob: project.jenkinsJob,
     jenkinsParams: {
       GIT_REPO: project.cloneUrl,
-      BRANCH: intent.branch || project.defaultBranch || 'main'
+      BRANCH: intent.branch || project.defaultBranch || 'main',
+      OUTPUT_PATH: intent.outputPath || '/var/www/html'
     },
     projectType: project.type
   };
@@ -31,11 +31,15 @@ const analyzeIntent = async (projectId, intent) => {
       decision.jenkinsParams.ACTION = 'deploy';
       decision.jenkinsParams.ENV = intent.environment;
       decision.reasoning.push(`Standard deployment to ${intent.environment}.`);
-      
+
       if (intent.environment === 'production') {
         decision.confidenceScore = 0.85;
         decision.reasoning.push('Production deployment requires approval.');
         decision.riskFlags.push('PROD_DEPLOYMENT');
+        decision.approvalRequired = true;
+      } else {
+        decision.autoExecute = true;
+        decision.reasoning.push('Dev environment: Auto-execution enabled.');
       }
       break;
 
@@ -45,12 +49,31 @@ const analyzeIntent = async (projectId, intent) => {
       decision.jenkinsParams.VERSION = intent.version || 'previous';
       decision.reasoning.push('Reverting to last stable version.');
       decision.riskFlags.push('ROLLBACK_ACTION');
+      if (intent.environment === 'production') {
+        decision.approvalRequired = true;
+      }
       break;
 
     case 'TEST':
       decision.jenkinsParams.ACTION = 'test';
-      decision.jenkinsParams.SCOPE = 'full';
-      decision.reasoning.push('Running full test suite.');
+      decision.jenkinsParams.ENV = 'dev'; // Force tests to dev/local-like context
+      decision.reasoning.push('Running full test suite (Jest).');
+      decision.autoExecute = true;
+      break;
+
+    case 'REDEPLOY':
+      decision.jenkinsParams.ACTION = 'deploy';
+      decision.jenkinsParams.ENV = intent.environment;
+      decision.reasoning.push(`Re-triggering deployment to ${intent.environment}.`);
+
+      if (intent.environment === 'production') {
+        decision.confidenceScore = 0.85;
+        decision.reasoning.push('Production redeployment requires approval.');
+        decision.riskFlags.push('PROD_REDEPLOYMENT');
+        decision.approvalRequired = true;
+      } else {
+        decision.autoExecute = true;
+      }
       break;
 
     default:

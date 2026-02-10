@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react';
-import { getDashboardStats, getSystemStatus, getAIInsights, getHistory, getProjects } from '../services/api';
+import { getDashboardStats, getSystemStatus, getSystemRecommendations, getHistory, getProjects } from '../services/api';
 import ActionPanel from '../components/ActionPanel';
 import StatCard from '../components/StatCard';
 import RecentActivity from '../components/RecentActivity';
@@ -15,8 +15,7 @@ const Dashboard = () => {
   
   const [status, setStatus] = useState({
       jenkins: 'Checking...',
-      decisionEngine: 'Online',
-      aiAnalysis: 'Ready',
+      executorStatus: 'Ready',
       jenkinsStatus: 'Unknown'
   });
 
@@ -30,7 +29,7 @@ const Dashboard = () => {
             const [statsData, statusData, insightData, historyData, projectsData] = await Promise.all([
                 getDashboardStats(),
                 getSystemStatus(),
-                getAIInsights(),
+                getSystemRecommendations(),
                 getHistory(),
                 getProjects()
             ]);
@@ -85,16 +84,9 @@ const Dashboard = () => {
             <div className="flex justify-between items-center">
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-sm">Decision Engine</span>
+                <span className="text-sm">Executor Node</span>
               </div>
-              <span className="text-xs text-green-400">{status.decisionEngine}</span>
-            </div>
-             <div className="flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 rounded-full bg-green-500" />
-                <span className="text-sm">AI Analysis</span>
-              </div>
-              <span className="text-xs text-green-400">{status.aiAnalysis}</span>
+              <span className="text-xs text-green-400">{status.executorStatus || 'Ready'}</span>
             </div>
           </div>
           

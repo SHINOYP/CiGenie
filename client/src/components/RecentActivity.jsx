@@ -1,4 +1,6 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
+import { Terminal } from 'lucide-react';
 
 const RecentActivity = ({ activities = [], projects = {} }) => {
   // fetching moved to parent Dashboard.jsx
@@ -13,31 +15,38 @@ const RecentActivity = ({ activities = [], projects = {} }) => {
             <div className="p-8 text-center text-gray-400">No activity yet.</div>
         )}
         {activities.map((item) => (
-          <div key={item.id} className="p-4 hover:bg-slate-800/50 transition-colors flex items-center justify-between">
+          <Link 
+            key={item.id} 
+            to={`/projects/${item.id}`}
+            className="p-4 hover:bg-slate-800/80 transition-all flex items-center justify-between group cursor-pointer"
+          >
             <div className="flex items-center space-x-4">
               <div className={`w-2 h-2 rounded-full ${
                 item.status === 'SUCCESS' ? 'bg-success' : 
                 item.status === 'FAILED' ? 'bg-danger' : 
-                item.status === 'RUNNING' ? 'bg-yellow-500 animate-pulse' : 'bg-gray-500'
+                (item.status === 'RUNNING' || item.status === 'IN_PROGRESS') ? 'bg-yellow-500 animate-pulse' : 'bg-gray-500'
               }`} />
               <div>
-                <p className="font-medium text-sm">{projects[item.projectId] || item.projectId}</p>
+                <p className="font-medium text-sm group-hover:text-primary transition-colors">{projects[item.projectId] || item.projectId}</p>
                 <div className="flex items-center space-x-2 text-xs text-gray-400">
                     <span className="uppercase font-bold text-gray-500">{item.plan?.action || 'BUILD'}</span>
                     <span>to {item.plan?.targetEnv || 'N/A'}</span>
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <span className={`text-xs px-2 py-1 rounded-full ${
-                 item.status === 'SUCCESS' ? 'bg-success/10 text-success' : 
-                 item.status === 'FAILED' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
-              }`}>
-                {item.status}
-              </span>
-              <p className="text-xs text-gray-500 mt-1">{new Date(item.startTime).toLocaleTimeString()}</p>
+            <div className="flex items-center space-x-4">
+              <div className="text-right">
+                <span className={`text-xs px-2 py-1 rounded-full ${
+                   item.status === 'SUCCESS' ? 'bg-success/10 text-success' : 
+                   item.status === 'FAILED' ? 'bg-danger/10 text-danger' : 'bg-warning/10 text-warning'
+                }`}>
+                  {item.status}
+                </span>
+                <p className="text-xs text-gray-500 mt-1">{new Date(item.startTime).toLocaleTimeString()}</p>
+              </div>
+              <Terminal size={16} className="text-gray-600 group-hover:text-primary" />
             </div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

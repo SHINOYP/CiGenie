@@ -7,11 +7,7 @@ router.post('/intent', deploymentController.analyzeIntent);
 router.post('/execute', deploymentController.executePlan);
 router.get('/execution/:id', deploymentController.getExecution);
 router.get('/history', deploymentController.getHistory);
-
-// Dashboard Routes
-router.get('/stats', deploymentController.getDashboardStats);
-router.get('/status', deploymentController.getSystemStatus);
-router.get('/insights', deploymentController.getAIInsights);
+router.delete('/:projectId', deploymentController.deleteProjectJob);
 
 // Sync Route
 router.post('/sync-jenkins', deploymentController.syncJenkinsHistory);

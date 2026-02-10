@@ -1,4 +1,4 @@
-const jenkinsService = require('../services/jenkinsService');
+const jenkinsExecutor = require('../services/executors/jenkinsExecutor');
 
 /**
  * Handles GitHub Webhooks (Push events).
@@ -22,7 +22,7 @@ const handleGithubWebhook = async (req, res) => {
       // In a real app, we'd map repo -> job ID
       const jobName = `${repoName}-build`; 
       
-      await jenkinsService.triggerBuild(jobName, {
+      await jenkinsExecutor.triggerBuild(jobName, {
         BRANCH: branch,
         COMMIT_ID: commitId,
       });
@@ -50,8 +50,8 @@ const handleJenkinsWebhook = async (req, res) => {
     // TODO: Save build status to Database
 
     if (status === 'FAILURE') {
-       console.log('Build Failed! Initiating AI Analysis (Future Scope)');
-       // TODO: Trigger AI analysis here in Phase 2
+       console.log('Build Failed! Gathering context for recommendation...');
+       // TODO: Trigger detailed failure analysis here in Phase 2
     }
 
     res.status(200).json({ message: 'Status received' });
