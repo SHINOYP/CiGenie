@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, Clock, Play } from 'lucide-react';
-import { getExecutionDetails, analyzeIntent, executePlan } from '../services/api';
-import AIDetailCard from '../components/AIDetailCard';
+import { ArrowLeft, CheckCircle, XCircle, Clock, Play, Shield, RefreshCw, Zap } from 'lucide-react';
+import { getExecution, analyzeIntent, executePlan } from '../services/api';
+import ExecutionPlanCard from '../components/ExecutionPlanCard';
+
 
 const BuildDetails = () => {
   const { id } = useParams();
@@ -10,12 +11,19 @@ const BuildDetails = () => {
   const [execution, setExecution] = useState(null);
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
+  const logsRef = useRef(null);
+
+  useEffect(() => {
+    if (logsRef.current) {
+        logsRef.current.scrollTop = logsRef.current.scrollHeight;
+    }
+  }, [execution?.logs]);
 
   useEffect(() => {
     let interval;
     const fetchDetails = async () => {
         try {
-            const data = await getExecutionDetails(id);
+            const data = await getExecution(id);
             setExecution(data);
             if (data.status === 'SUCCESS' || data.status === 'FAILED') {
                  setLoading(false);
@@ -43,7 +51,7 @@ const BuildDetails = () => {
               branch: execution.plan.jenkinsParams.BRANCH
           });
           const result = await executePlan(newPlan);
-          navigate(`/build/${result.executionId}`);
+          navigate(`/projects/${result.executionId}`);
       } catch (e) {
           alert('Retry failed: ' + e.message);
           setRetrying(false);
@@ -109,24 +117,67 @@ const BuildDetails = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-            <div className="bg-surface rounded-xl border border-slate-700 overflow-hidden">
-                <div className="p-4 border-b border-slate-700 font-semibold">
-                    Execution Logs
+            <div className="bg-[#0c131f] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
+                <div className="bg-slate-800/80 px-4 py-2 flex items-center justify-between border-b border-slate-700">
+                    <div className="flex items-center space-x-2">
+                        <div className="flex space-x-1.5">
+                            <div className="w-3 h-3 rounded-full bg-red-500/50" />
+                            <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
+                            <div className="w-3 h-3 rounded-full bg-green-500/50" />
+                        </div>
+                        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest ml-2">Live Console Output</span>
+                    </div>
+                    <div className="text-[10px] text-gray-500 font-mono">
+                        {execution.status === 'IN_PROGRESS' ? 'STREAMING...' : 'COMPLETED'}
+                    </div>
                 </div>
-                <div className="bg-[#0c131f] p-4 h-[400px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed">
+                <div className="p-4 h-[500px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed custom-scrollbar" ref={logsRef}>
                     {execution.logs?.length === 0 ? (
-                        <span className="text-gray-600">Waiting for logs...</span>
+                        <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
+                             <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                             <div className="animate-pulse">Initializing Terminal...</div>
+                        </div>
                     ) : (
                         execution.logs.map((log, i) => (
-                            <div key={i}>{log}</div>
+                            <div key={i} className={`whitespace-pre-wrap py-0.5 ${log.includes('ERROR') || log.includes('FAILURE') || log.includes('failed') ? 'text-red-400 bg-red-400/5' : ''} ${log.includes('SUCCESS') || log.includes('passed') ? 'text-green-400' : ''}`}>
+                                <span className="text-gray-600 mr-2 opacity-50 select-none">{(i + 1).toString().padStart(3, '0')}</span>
+                                {log}
+                            </div>
                         ))
                     )}
                 </div>
             </div>
         </div>
 
-        <div className="space-y-6">
-            <AIDetailCard plan={execution.plan} status={execution.status} />
+         <div className="space-y-6">
+            <ExecutionPlanCard plan={execution.plan} status={execution.status} />
+
+            {execution.testResults && (
+                <div className="bg-surface rounded-xl border border-slate-700 p-6 animate-in slide-in-from-right-4">
+                    <h3 className="font-semibold text-sm mb-4 uppercase text-gray-400 tracking-wider flex items-center">
+                        <Shield size={16} className="mr-2 text-primary" />
+                        Test Summary
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-slate-800 p-4 rounded-lg text-center border border-slate-700">
+                            <div className="text-2xl font-bold text-green-500">{execution.testResults.testsPassed || 0}</div>
+                            <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-semibold">Passed</div>
+                        </div>
+                        <div className="bg-slate-800 p-4 rounded-lg text-center border border-slate-700">
+                            <div className="text-2xl font-bold text-red-500">{execution.testResults.testsFailed || 0}</div>
+                            <div className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest font-semibold">Failed</div>
+                        </div>
+                    </div>
+                    {execution.testResults.recommendation && (
+                        <div className={`p-3 rounded-lg text-xs leading-relaxed border ${
+                            execution.testResults.testsFailed > 0 ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'
+                        }`}>
+                            <span className="font-bold mr-1 block mb-1 uppercase tracking-tighter text-[10px]">Analysis & Recommendation:</span>
+                            {execution.testResults.recommendation}
+                        </div>
+                    )}
+                </div>
+            )}
             
             <div className="bg-surface rounded-xl border border-slate-700 p-6">
                 <h3 className="font-semibold text-sm mb-4 uppercase text-gray-400 tracking-wider">Parameters</h3>

@@ -4,6 +4,10 @@ require('dotenv').config();
 
 
 const webhookRoutes = require('./routes/webhooks');
+const deployRoutes = require('./routes/deployments');
+const configRoutes = require('./routes/config');
+const systemRoutes = require('./routes/system');
+const githubRoutes = require('./routes/github');
 
 const app = express();
 app.use('/api/tests', require('./routes/tests'));
@@ -28,75 +32,63 @@ app.use(express.json());
 app.use((req, res, next) => {
     const start = Date.now();
     const { method, url } = req;
-    
+
     // Check status after response finishes
     res.on('finish', () => {
         const duration = Date.now() - start;
         const status = res.statusCode;
-        
+
         let color = '\x1b[32m'; // Green for 2xx
         if (status >= 300) color = '\x1b[36m'; // Cyan for 3xx
         if (status >= 400) color = '\x1b[33m'; // Yellow for 4xx
         if (status >= 500) color = '\x1b[31m'; // Red for 5xx
         const reset = '\x1b[0m';
-        
+
         console.log(`${color}[${method}] ${url} - ${status} - ${duration}ms${reset}`);
     });
-    
+
     next();
 });
 
 // Routes
 app.use('/api/webhooks', webhookRoutes);
-app.use('/api/deploy', require('./routes/deployments'));
+app.use('/api/deploy', deployRoutes);
+app.use('/api/config', configRoutes);
+app.use('/api/system', systemRoutes);
+app.use('/api/github', githubRoutes);
 
 app.get('/', (req, res) => {
-  res.send('AI CI/CD Backend is running');
+    res.send('CiGenie Control Plane is running');
 });
 
-// Initialize GitHub Service
-const githubService = require('./services/githubService');
-const jenkinsService = require('./services/jenkinsService');
-const store = require('./models/store');
+/**
+ * Initializes services and syncs data on startup
+ */
+const initialize = async () => {
+    try {
+        console.log('\x1b[36m%s\x1b[0m', '[System] Initializing configuration...');
+        const githubService = require('./services/githubService');
+        const jenkinsExecutor = require('./services/executors/jenkinsExecutor');
+        const store = require('./models/store');
 
-(async () => {
-    await githubService.fetchProjects();
-    console.log('Initial project fetch complete');
-    
-    // Auto-sync Jenkins builds if real Jenkins is enabled
-    if (process.env.USE_REAL_JENKINS === 'true') {
-        try {
-            console.log('[Startup] Syncing Jenkins build history...');
-            const jenkinsBuilds = await jenkinsService.getAllBuildsHistory();
-            
-            jenkinsBuilds.forEach(jb => {
-                const existing = store.getExecution(jb.id);
-                if (!existing) {
-                    store.addExecution({
-                        id: jb.id,
-                        projectId: jb.jobName,
-                        status: jb.status === 'SUCCESS' ? 'SUCCESS' : jb.status === 'FAILURE' ? 'FAILED' : 'PENDING',
-                        stage: 'COMPLETED',
-                        logs: [`[INFO] Synced from Jenkins build #${jb.buildNumber}`],
-                        plan: {
-                            action: 'JENKINS_BUILD',
-                            targetEnv: 'N/A',
-                            projectId: jb.jobName,
-                            jenkinsParams: {}
-                        },
-                        startTime: jb.startTime,
-                        endTime: jb.endTime
-                    });
-                }
-            });
-            
-            console.log(`[Startup] Synced ${jenkinsBuilds.length} builds from Jenkins`);
-        } catch (error) {
-            console.error('[Startup] Failed to sync Jenkins history:', error.message);
-        }
+        // Initial project fetch
+        await githubService.fetchProjects();
+        console.log('\x1b[32m%s\x1b[0m', '[System] GitHub project synchronization complete');
+
+        // Auto-sync Jenkins builds using the unified controller logic
+        console.log('\x1b[36m%s\x1b[0m', '[System] Syncing Jenkins execution history...');
+        const deploymentController = require('./controllers/deploymentController');
+        const syncedCount = await deploymentController.syncJenkinsHistory();
+
+        console.log('\x1b[32m%s\x1b[0m', `[System] Successfully synced ${syncedCount} legacy builds`);
+
+    } catch (error) {
+        console.error('\x1b[31m%s\x1b[0m', `[Critical] Initialization failed: ${error.message}`);
     }
-})();
+};
+
+initialize();
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on port ${PORT}`);
 });

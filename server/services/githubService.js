@@ -14,7 +14,7 @@ const fetchPackageJson = async (owner, repo, token) => {
 
         const url = `${BASE_URL}/repos/${owner}/${repo}/contents/package.json`;
         console.log(`[GithubService] Checking package.json for ${repo}...`);
-        
+
         const response = await axios.get(url, { headers });
         return response.data;
     } catch (error) {
@@ -28,19 +28,22 @@ const fetchPackageJson = async (owner, repo, token) => {
  */
 const detectProjectType = (packageJson) => {
     if (!packageJson || !packageJson.dependencies) return 'UNKNOWN';
-    
+
     const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-    
+
     if (deps['react'] || deps['next'] || deps['vite']) return 'REACT';
     if (deps['express'] || deps['fastify'] || deps['nestjs']) return 'NODE';
-    
+
     return 'NODE'; // Default fallback for other JS projects
 };
 
 const fetchProjects = async () => {
-    const username = process.env.GITHUB_USERNAME;
+    const config = store.getConfig();
+    const username = config.githubUsername;
+    const token = config.githubToken;
+
     if (!username) {
-        console.warn('[GithubService] GITHUB_USERNAME is not set in .env');
+        console.warn('[GithubService] GITHUB_USERNAME is not set. Go to Settings to configure.');
         return [];
     }
 
@@ -50,19 +53,19 @@ const fetchProjects = async () => {
         };
 
         // Add token if available to increase rate limits
-        if (process.env.GITHUB_TOKEN) {
-            headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+        if (token) {
+            headers['Authorization'] = `token ${token}`;
         }
 
         console.log(`[GithubService] Fetching repos for user: ${username}`);
-        const response = await axios.get(`${BASE_URL}/users/${username}/repos?sort=updated&per_page=10`, { headers });
-        
+        const response = await axios.get(`${BASE_URL}/users/${username}/repos?sort=updated&per_page=100`, { headers });
+
         const repos = response.data;
-        
+
         // Map GitHub repos to our project structure
         // We use Promise.all to fetch package.json for all repos in parallel
         const projectPromises = repos.map(async (repo) => {
-            const packageJson = await fetchPackageJson(repo.owner.login, repo.name, process.env.GITHUB_TOKEN);
+            const packageJson = await fetchPackageJson(repo.owner.login, repo.name, token);
             const projectType = detectProjectType(packageJson);
 
             return {
@@ -94,6 +97,16 @@ const fetchProjects = async () => {
     }
 };
 
+/**
+ * Checks if package.json has a "test" script
+ */
+const hasTestScript = async (owner, repo, token) => {
+    const packageJson = await fetchPackageJson(owner, repo, token);
+    if (!packageJson || !packageJson.scripts) return false;
+    return !!packageJson.scripts.test;
+};
+
 module.exports = {
-    fetchProjects
+    fetchProjects,
+    hasTestScript
 };
