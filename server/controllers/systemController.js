@@ -2,8 +2,8 @@ const store = require('../models/store');
 const jenkinsExecutor = require('../services/executors/jenkinsExecutor');
 
 // GET /api/system/stats
-const getDashboardStats = (req, res) => {
-    const executions = store.getExecutions();
+const getDashboardStats = async (req, res) => {
+    const executions = await store.getExecutions();
     const totalBuilds = executions.length;
 
     const successCount = executions.filter(e => e.status === 'SUCCESS').length;
@@ -70,8 +70,8 @@ const getFileSystemPaths = async (req, res) => {
 };
 
 // GET /api/system/insights
-const getSystemRecommendations = (req, res) => {
-    const executions = store.getExecutions();
+const getSystemRecommendations = async (req, res) => {
+    const executions = await store.getExecutions();
     const recentFailures = executions.slice(0, 5).filter(e => e.status === 'FAILED');
 
     if (recentFailures.length >= 2) {

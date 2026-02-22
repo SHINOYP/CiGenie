@@ -8,57 +8,12 @@ const generateId = () => Math.random().toString(36).substring(2, 15);
 
 // GET /api/projects
 const getProjects = async (req, res) => {
-    const projects = store.getProjects();
-    const executions = store.getExecutions();
-
-    // Map deployment status to each project
-    const projectsWithStatus = projects.map(project => {
-        const status = {
-            dev: false,
-            production: false
-        };
-
-        // Check for successful deployments in each environment
-        ['dev', 'production'].forEach(env => {
-            const lastDeployment = executions.find(e =>
-                e.projectId === project.id &&
-                e.status === 'SUCCESS' &&
-                e.plan?.targetEnv === env &&
-                (e.plan?.action === 'DEPLOY' || e.plan?.action === 'REDEPLOY' || e.plan?.action === 'deploy')
-            );
-            if (lastDeployment) {
-                status[env] = true;
-                status[`${env}Path`] = lastDeployment.plan?.jenkinsParams?.OUTPUT_PATH;
-                status[`${env}Date`] = lastDeployment.endTime || lastDeployment.startTime;
-            }
-        });
-
-        // Check for test status
-        const lastTest = executions.find(e =>
-            e.projectId === project.id &&
-            (e.plan?.action === 'test' || e.plan?.action === 'TEST' || e.params?.ACTION === 'test') &&
-            e.status && e.status !== 'IN_PROGRESS'
-        );
-        if (lastTest) {
-            status.lastTestStatus = lastTest.status; // SUCCESS, UNSTABLE, FAILED
-            status.lastTestDate = lastTest.endTime || lastTest.startTime;
-            status.lastTestSummary = lastTest.testSummary;
-        }
-
-        // Determine if path is locked (if any deployment execution exists)
-        const anyDeployment = executions.find(e =>
-            e.projectId === project.id &&
-            e.plan?.jenkinsParams?.OUTPUT_PATH
-        );
-        if (anyDeployment) {
-            status.isLocked = true;
-            status.lockedPath = anyDeployment.plan.jenkinsParams.OUTPUT_PATH;
-        }
-
-        return { ...project, deployed: status };
-    });
-
-    res.json(projectsWithStatus);
+    try {
+        const projects = await store.getProjects();
+        res.json(projects);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // POST /api/deploy/intent
@@ -80,8 +35,9 @@ const executePlan = async (req, res) => {
 
         // 1. Preflight Validation for TEST actions
         if (plan.action === 'test' || plan.action === 'TEST') {
-            const project = store.getProjects().find(p => p.id === plan.projectId);
-            const config = store.getConfig();
+            const projects = await store.getProjects();
+            const project = projects.find(p => p.id === plan.projectId);
+            const config = await store.getConfig();
 
             if (project) {
                 const owner = config.githubUsername;
@@ -113,7 +69,7 @@ const executePlan = async (req, res) => {
             startTime: new Date()
         };
 
-        store.addExecution(executionRecord);
+        await store.addExecution(executionRecord);
 
         console.log(`[DeploymentController] Triggering Jenkins job: ${plan.jenkinsJob}`);
         try {
@@ -121,7 +77,8 @@ const executePlan = async (req, res) => {
 
             if (!jobExists) {
                 console.log(`[DeploymentController] Job ${plan.jenkinsJob} not found. Attempting to auto-create...`);
-                const project = store.getProjects().find(p => p.id === plan.projectId);
+                const projects = await store.getProjects();
+                const project = projects.find(p => p.id === plan.projectId);
                 if (project && project.cloneUrl) {
                     await jenkinsExecutor.createJob(plan.jenkinsJob, project.cloneUrl, project.type);
                     console.log(`[DeploymentController] Job ${plan.jenkinsJob} created successfully.`);
@@ -129,7 +86,8 @@ const executePlan = async (req, res) => {
                     throw new Error(`Cannot create job: Project or Clone URL not found for ${plan.projectId}`);
                 }
             } else {
-                const project = store.getProjects().find(p => p.id === plan.projectId);
+                const projects = await store.getProjects();
+                const project = projects.find(p => p.id === plan.projectId);
                 if (project && project.cloneUrl) {
                     console.log(`[DeploymentController] Job ${plan.jenkinsJob} exists. Updating config...`);
                     await jenkinsExecutor.updateJob(plan.jenkinsJob, project.cloneUrl, project.type);
@@ -213,9 +171,14 @@ const pollExecution = async (executionRecord, jobName) => {
                     }
 
                     executionRecord.testResults = testResults;
+
+                    // PERSIST completion to DB
+                    await store.addExecution(executionRecord);
+
                     clearInterval(interval);
                 } else {
                     executionRecord.status = 'IN_PROGRESS';
+                    // Optional: persist in-progress logs? Probably too noisy for every 5s poll.
                 }
             }
         } catch (err) {
@@ -225,23 +188,28 @@ const pollExecution = async (executionRecord, jobName) => {
 };
 
 // GET /api/deploy/execution/:id
-const getExecution = (req, res) => {
+const getExecution = async (req, res) => {
     const { id } = req.params;
-    const execution = store.getExecution(id);
+    const execution = await store.getExecution(id);
     if (!execution) return res.status(404).json({ error: 'Execution not found' });
     res.json(execution);
 };
 
 // GET /api/deploy/history
-const getHistory = (req, res) => {
-    res.json(store.getExecutions());
+const getHistory = async (req, res) => {
+    try {
+        const history = await store.getExecutions();
+        res.json(history);
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
 };
 
 // DELETE /api/deploy/:projectId
 const deleteProjectJob = async (req, res) => {
     try {
         const { projectId } = req.params;
-        const projects = store.getProjects();
+        const projects = await store.getProjects();
         const project = projects.find(p => p.id === projectId);
 
         if (!project) {
@@ -263,7 +231,7 @@ const deleteProjectJob = async (req, res) => {
         }
 
         // 2. Clear local execution history for this project
-        store.clearProjectHistory(projectId);
+        await store.clearProjectHistory(projectId);
 
         res.json({ success: true, message: 'Project job and history cleared successfully' });
     } catch (error) {
@@ -286,15 +254,17 @@ const syncJenkinsHistory = async (req, res) => {
 };
 
 const performSync = async () => {
-    const projects = store.getProjects();
+    const projects = await store.getProjects();
     const jenkinsBuilds = await jenkinsExecutor.getAllBuildsHistory();
     const jobToIdMap = {};
     projects.forEach(p => { if (p.jenkinsJob) jobToIdMap[p.jenkinsJob] = p.id; });
     let syncCount = 0;
-    jenkinsBuilds.forEach(jb => {
-        if (!store.getExecution(jb.id)) {
+
+    for (const jb of jenkinsBuilds) {
+        const existing = await store.getExecution(jb.id);
+        if (!existing) {
             const projectId = jobToIdMap[jb.projectId] || jb.projectId;
-            store.addExecution({
+            await store.addExecution({
                 id: jb.id,
                 projectId: projectId,
                 jenkinsBuildId: jb.buildNumber,
@@ -314,7 +284,7 @@ const performSync = async () => {
             });
             syncCount++;
         }
-    });
+    }
     return syncCount;
 };
 
