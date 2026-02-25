@@ -38,7 +38,7 @@ const detectProjectType = (packageJson) => {
 };
 
 const fetchProjects = async () => {
-    const config = store.getConfig();
+    const config = await store.getConfig();
     const username = config.githubUsername;
     const token = config.githubToken;
 
@@ -85,7 +85,7 @@ const fetchProjects = async () => {
         const projects = await Promise.all(projectPromises);
 
         console.log(`[GithubService] Fetched ${projects.length} projects.`);
-        store.setProjects(projects);
+        await store.setProjects(projects);
         return projects;
 
     } catch (error) {

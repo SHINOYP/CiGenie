@@ -2,15 +2,16 @@ const store = require('../models/store');
 const githubService = require('../services/githubService');
 
 // GET /api/config
-const getConfig = (req, res) => {
-    res.json(store.getConfig());
+const getConfig = async (req, res) => {
+    const config = await store.getConfig();
+    res.json(config);
 };
 
 // POST /api/config
 const updateConfig = async (req, res) => {
     try {
         const { githubUsername, githubToken } = req.body;
-        store.setConfig({ githubUsername, githubToken });
+        await store.setConfig({ githubUsername, githubToken });
 
         // Trigger a re-fetch of projects with new credentials
         await githubService.fetchProjects();

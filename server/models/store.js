@@ -1,42 +1,101 @@
-// Simple in-memory store for MVP
-// In production, this would be a database (MongoDB/Postgres)
+const Project = require('./Project');
+const Execution = require('./Execution');
+const Config = require('./Config');
 
-let projects = [];
-const executions = [];
-
-const getProjects = () => projects;
-
-const setProjects = (newProjects) => {
-  projects = newProjects;
+const getProjects = async () => {
+  return await Project.find().lean();
 };
 
-const getExecutions = () => executions;
-
-let config = {
-  githubUsername: process.env.GITHUB_USERNAME || '',
-  githubToken: process.env.GITHUB_TOKEN || ''
-};
-
-const getConfig = () => config;
-const setConfig = (newConfig) => {
-  config = { ...config, ...newConfig };
-};
-
-const addExecution = (exec) => {
-  executions.unshift(exec); // Add to top
-  if (executions.length > 100) executions.pop(); // Keep last 100
-};
-
-const getExecution = (id) => executions.find(e => e.id === id);
-
-const clearProjectHistory = (projectId) => {
-  // Modify in place to remove executions for this project
-  let i = executions.length;
-  while (i--) {
-    if (executions[i].projectId === projectId) {
-      executions.splice(i, 1);
-    }
+const setProjects = async (newProjects) => {
+  // Upsert projects based on ID
+  for (const projectData of newProjects) {
+    await Project.findOneAndUpdate(
+      { id: projectData.id },
+      projectData,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
   }
+};
+
+const getExecutions = async () => {
+  return await Execution.find().sort({ startTime: -1 }).limit(100).lean();
+};
+
+const getConfig = async () => {
+  let config = await Config.findOne();
+  if (!config) {
+    // Fallback to Env if not in DB
+    return {
+      githubUsername: process.env.GITHUB_USERNAME || '',
+      githubToken: process.env.GITHUB_TOKEN || ''
+    };
+  }
+  return config;
+};
+
+const setConfig = async (newConfig) => {
+  await Config.findOneAndUpdate({}, newConfig, { upsert: true, new: true });
+};
+
+const addExecution = async (exec) => {
+  const newExec = new Execution(exec);
+  await newExec.save();
+
+  // Update project deployment status if it's a deployment action
+  if (exec.plan && exec.plan.projectId) {
+    await updateProjectStatusFromExec(exec.plan.projectId);
+  }
+};
+
+const getExecution = async (id) => {
+  return await Execution.findOne({ id }).lean();
+};
+
+const clearProjectHistory = async (projectId) => {
+  await Execution.deleteMany({ projectId });
+};
+
+// Helper to keep project status in sync with history
+const updateProjectStatusFromExec = async (projectId) => {
+  const executions = await Execution.find({ projectId }).sort({ startTime: -1 });
+  const project = await Project.findOne({ id: projectId });
+  if (!project) return;
+
+  const status = { ...project.deployed };
+
+  // Update dev/prod status based on executions
+  ['dev', 'production'].forEach(env => {
+    const lastDeployment = executions.find(e =>
+      e.status === 'SUCCESS' &&
+      e.plan?.targetEnv === env &&
+      ['DEPLOY', 'REDEPLOY', 'deploy'].includes(e.plan?.action)
+    );
+    if (lastDeployment) {
+      status[env] = true;
+      status[`${env}Path`] = lastDeployment.plan?.jenkinsParams?.OUTPUT_PATH;
+      status[`${env}Date`] = lastDeployment.endTime || lastDeployment.startTime;
+    }
+  });
+
+  // Last test status
+  const lastTest = executions.find(e =>
+    ['test', 'TEST'].includes(e.plan?.action) &&
+    e.status && e.status !== 'IN_PROGRESS'
+  );
+  if (lastTest) {
+    status.lastTestStatus = lastTest.status;
+    status.lastTestDate = lastTest.endTime || lastTest.startTime;
+    status.lastTestSummary = lastTest.testSummary;
+  }
+
+  // Lock status
+  const anyDeployment = executions.find(e => e.plan?.jenkinsParams?.OUTPUT_PATH);
+  if (anyDeployment) {
+    status.isLocked = true;
+    status.lockedPath = anyDeployment.plan.jenkinsParams.OUTPUT_PATH;
+  }
+
+  await Project.updateOne({ id: projectId }, { deployed: status });
 };
 
 module.exports = {
@@ -47,5 +106,6 @@ module.exports = {
   setConfig,
   addExecution,
   getExecution,
-  clearProjectHistory
+  clearProjectHistory,
+  updateProjectStatusFromExec
 };

@@ -5,7 +5,8 @@ const store = require('../models/store');
  * This is where the future LLM integration will happen.
  */
 const analyzeIntent = async (projectId, intent) => {
-  const project = store.getProjects().find(p => p.id === projectId);
+  const projects = await store.getProjects();
+  const project = projects.find(p => p.id === projectId);
   if (!project) throw new Error('Project not found');
 
   // Rule-based decision logic

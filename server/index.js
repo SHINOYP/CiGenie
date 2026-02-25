@@ -66,6 +66,10 @@ app.get('/', (req, res) => {
  */
 const initialize = async () => {
     try {
+        console.log('\x1b[36m%s\x1b[0m', '[System] Connecting to MongoDB...');
+        const connectDB = require('./config/db');
+        await connectDB();
+
         console.log('\x1b[36m%s\x1b[0m', '[System] Initializing configuration...');
         const githubService = require('./services/githubService');
         const jenkinsExecutor = require('./services/executors/jenkinsExecutor');
