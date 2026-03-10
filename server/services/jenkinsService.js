@@ -2,7 +2,7 @@ const axios = require('axios');
 
 const BASE_URL = process.env.JENKINS_URL || 'http://localhost:8080';
 const USER = 'krixhnna_';
-const TOKEN = '1155197bcbc5a8e4d5d853a7c159c59fb4';
+const TOKEN = '112eaa3521fa883936f4bd89218da2cf40';
 
 const {
   JENKINS_BASE_URL,
