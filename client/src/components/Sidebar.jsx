@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate} from "react-router-dom";
 import {
   LayoutDashboard,
   List,
@@ -9,8 +9,9 @@ import {
 } from "lucide-react";
 import { getConfig } from "../services/api";
 
-const Sidebar = () => {
-  const [username, setUsername] = useState("User");
+  const Sidebar = () => {
+  const [username, setUsername] = useState(localStorage.getItem("loggedInUser") || "User");
+  const navigate = useNavigate();
 
   useEffect(() => {
     getConfig()
@@ -21,7 +22,12 @@ const Sidebar = () => {
       })
       .catch((err) => console.error("Sidebar config fetch failed:", err));
   }, []);
+  
 
+const handleLogout = () => {
+  localStorage.removeItem("loggedInUser");
+  navigate("/login");
+};
   const getInitials = (name) => {
     if (!name) return "U";
     return name.substring(0, 2).toUpperCase();
@@ -99,19 +105,26 @@ const Sidebar = () => {
         </div>
       </nav>
 
-      <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500">
-            {getInitials(username)}
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-sm font-medium truncate">{username}</p>
-            <p className="text-xs text-green-400">Online</p>
-          </div>
-        </div>
-      </div>
+      <div className="p-4 border-t border-slate-700 space-y-3">
+  <div className="flex items-center space-x-3">
+    <div className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500">
+      {getInitials(username)}
     </div>
+
+    <div className="overflow-hidden">
+      <p className="text-sm font-medium truncate">{username}</p>
+      <p className="text-xs text-green-400">Online</p>
+    </div>
+  </div>
+
+  <button
+    onClick={handleLogout}
+    className="w-full px-3 py-2 text-sm text-white transition rounded-lg bg-red-500/80 hover:bg-red-500"
+  >
+    Logout
+  </button>
+</div>
+</div>
   );
 };
-
 export default Sidebar;
