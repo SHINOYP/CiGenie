@@ -150,12 +150,13 @@ const SettingsPage = () => {
             </div>
 
             <div className="mt-8 p-6 bg-slate-800/30 rounded-xl border border-dashed border-slate-700">
-                <h4 className="text-sm font-bold text-gray-300 mb-2">Security Notice</h4>
+                <h4 className="text-sm font-bold text-gray-300 mb-2">Security & Persistence</h4>
                 <div className="text-xs text-gray-500 leading-relaxed">
-                    Credentials are stored in-memory on the Control Plane (Node.js). They are used ONLY for:
+                    Credentials are stored securely in <b>MongoDB</b>. They are utilized by the backend engine for:
                     <ul className="list-disc ml-5 mt-2 space-y-1">
-                        <li>Fetching public/private repositories for display.</li>
-                        <li>Downloading project source code during build execution in Jenkins.</li>
+                        <li>Synchronizing metadata across your GitHub account.</li>
+                        <li>Automating project cloning during Jenkins build cycles.</li>
+                        <li>Increasing GitHub API rate limits for seamless execution.</li>
                     </ul>
                 </div>
             </div>

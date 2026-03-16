@@ -62,10 +62,10 @@ const Dashboard = () => {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold">Control Plane</h2>
+        <h2 className="text-2xl font-bold">Dashboard</h2>
       </div>
 
-      {/* <ActionPanel /> */}
+
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
         <StatCard

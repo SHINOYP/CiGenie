@@ -2,17 +2,23 @@ const axios = require('axios');
 const store = require('../../models/store'); // Access store for project details if needed
 const { getReactPipeline, getNodePipeline } = require('../../templates/pipelineTemplates');
 
-const BASE_URL = process.env.JENKINS_URL;
-const USER = process.env.JENKINS_USER;
-const TOKEN = process.env.JENKINS_TOKEN;
-
+/**
+ * Resolves the Jenkins Base URL dynamicly
+ */
+const getBaseUrl = async () => {
+  const config = await store.getConfig();
+  return config.jenkinsUrl || process.env.JENKINS_URL;
+};
 const getAuthHeader = () => {
-  if (!USER || !TOKEN) {
+  const user = process.env.JENKINS_USER;
+  const token = process.env.JENKINS_TOKEN;
+
+  if (!user || !token) {
     console.error('[JenkinsExecutor] Missing credentials! Check .env (JENKINS_USER, JENKINS_TOKEN)');
     return {};
   }
   return {
-    Authorization: `Basic ${Buffer.from(`${USER}:${TOKEN}`).toString('base64')}`,
+    Authorization: `Basic ${Buffer.from(`${user}:${token}`).toString('base64')}`,
   };
 };
 
@@ -21,7 +27,7 @@ const getAuthHeader = () => {
  */
 const getCrumb = async () => {
   try {
-    const response = await axios.get(`${BASE_URL}/crumbIssuer/api/json`, {
+    const response = await axios.get(`${await getBaseUrl()}/crumbIssuer/api/json`, {
       headers: getAuthHeader(),
     });
     return {
@@ -42,7 +48,7 @@ const triggerBuild = async (jobName, params = {}) => {
   const crumb = await getCrumb();
 
   try {
-    let url = `${BASE_URL}/job/${encodedJobName}/${endpoint}`;
+    let url = `${await getBaseUrl()}/job/${encodedJobName}/${endpoint}`;
     if (endpoint === 'buildWithParameters') {
       const queryParams = new URLSearchParams(params).toString();
       url += `?${queryParams}`;
@@ -70,7 +76,7 @@ const triggerBuild = async (jobName, params = {}) => {
 const getBuildLogs = async (jobName, buildId) => {
   try {
     const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
-    const url = `${BASE_URL}/job/${encodedJobName}/${buildId}/consoleText`;
+    const url = `${await getBaseUrl()}/job/${encodedJobName}/${buildId}/consoleText`;
     const response = await axios.get(url, { headers: getAuthHeader() });
     return response.data;
   } catch (error) {
@@ -82,9 +88,12 @@ const getBuildLogs = async (jobName, buildId) => {
  * Gets details of a specific build to check status
  */
 const getBuildDetails = async (jobName, buildId) => {
+  if (!jobName || typeof jobName !== 'string') {
+    throw new Error(`Invalid Job Name: Expected string, got ${typeof jobName}`);
+  }
   try {
     const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
-    const url = `${BASE_URL}/job/${encodedJobName}/${buildId}/api/json`;
+    const url = `${await getBaseUrl()}/job/${encodedJobName}/${buildId}/api/json`;
     const response = await axios.get(url, { headers: getAuthHeader() });
     return response.data;
   } catch (error) {
@@ -96,9 +105,12 @@ const getBuildDetails = async (jobName, buildId) => {
  * Checks if a job exists
  */
 const checkJobExists = async (jobName) => {
+  if (!jobName || typeof jobName !== 'string') {
+    throw new Error(`Invalid Job Name during checkJobExists: Expected string, got ${typeof jobName}. This usually means the project is missing a 'jenkinsJob' field in the database.`);
+  }
   try {
     const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
-    const url = `${BASE_URL}/job/${encodedJobName}/api/json`;
+    const url = `${await getBaseUrl()}/job/${encodedJobName}/api/json`;
     await axios.get(url, { headers: getAuthHeader() });
     return true;
   } catch (error) {
@@ -177,7 +189,7 @@ const createJob = async (jobName, gitUrl, projectType = 'NODE') => {
     const headers = { ...getAuthHeader(), ...crumb, 'Content-Type': 'application/xml' };
     const configXml = generateConfigXml(gitUrl, projectType);
     const actualJobName = jobName.includes('/') ? jobName.split('/').pop() : jobName;
-    const url = `${BASE_URL}/createItem?name=${encodeURIComponent(actualJobName)}`;
+    const url = `${await getBaseUrl()}/createItem?name=${encodeURIComponent(actualJobName)}`;
     await axios.post(url, configXml, { headers });
     return true;
   } catch (error) {
@@ -194,7 +206,7 @@ const updateJob = async (jobName, gitUrl, projectType = 'NODE') => {
     const headers = { ...getAuthHeader(), ...crumb, 'Content-Type': 'application/xml' };
     const configXml = generateConfigXml(gitUrl, projectType);
     const actualJobName = jobName.includes('/') ? jobName.split('/').pop() : jobName;
-    const url = `${BASE_URL}/job/${encodeURIComponent(actualJobName)}/config.xml`;
+    const url = `${await getBaseUrl()}/job/${encodeURIComponent(actualJobName)}/config.xml`;
     await axios.post(url, configXml, { headers });
     return true;
   } catch (error) {
@@ -202,18 +214,33 @@ const updateJob = async (jobName, gitUrl, projectType = 'NODE') => {
   }
 };
 
-/**
- * Deletes a job
- */
 const deleteJob = async (jobName) => {
   try {
     const crumb = await getCrumb();
     const headers = { ...getAuthHeader(), ...crumb };
     const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
-    const url = `${BASE_URL}/job/${encodedJobName}/doDelete`;
-    await axios.post(url, null, { headers });
+    const url = `${await getBaseUrl()}/job/${encodedJobName}/doDelete`;
+    
+    console.log(`[JenkinsExecutor] Attempting to delete job: ${jobName} at ${url}`);
+    
+    // Jenkins doDelete returns a 302 on success. Axios follows it by default.
+    // We use a POST request as required by Jenkins.
+    await axios.post(url, null, { 
+      headers,
+      maxRedirects: 5,
+      validateStatus: (status) => status >= 200 && status < 400 // Accept 302
+    });
+    
+    console.log(`[JenkinsExecutor] Delete request initiated for ${jobName}`);
     return true;
   } catch (error) {
+    // If it's a 404, the job might already be gone, which we can treat as success for deletion
+    if (error.response && error.response.status === 404) {
+      console.log(`[JenkinsExecutor] Job ${jobName} already deleted or not found.`);
+      return true;
+    }
+    
+    console.error(`[JenkinsExecutor] Job Deletion Failed: ${error.message}`);
     throw new Error(`Job Deletion Failed: ${error.message}`);
   }
 };
@@ -223,9 +250,9 @@ const deleteJob = async (jobName) => {
  * @param {string} jobName 
  */
 const getJobDetails = async (jobName) => {
+  const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
   try {
-    const encodedJobName = jobName.split('/').map(encodeURIComponent).join('/job/');
-    const url = `${BASE_URL}/job/${encodedJobName}/api/json`;
+    const url = `${await getBaseUrl()}/job/${encodedJobName}/api/json`;
 
     const response = await axios.get(url, { headers: getAuthHeader() });
     return response.data;
@@ -286,7 +313,7 @@ const parseTestResults = (logs) => {
  */
 const getAllBuildsHistory = async () => {
   try {
-    const url = `${BASE_URL}/api/json?tree=jobs[name,builds[number,result,timestamp,duration,url,actions[parameters[name,value]]]]`;
+    const url = `${await getBaseUrl()}/api/json?tree=jobs[name,builds[number,result,timestamp,duration,url,actions[parameters[name,value]]]]`;
     const response = await axios.get(url, { headers: getAuthHeader() });
     const jobs = response.data.jobs || [];
 
@@ -341,7 +368,7 @@ const getAllBuildsHistory = async () => {
  */
 const getJenkinsStatus = async () => {
   try {
-    const url = `${BASE_URL}/api/json?tree=numExecutors`;
+    const url = `${await getBaseUrl()}/api/json?tree=numExecutors`;
     await axios.get(url, { headers: getAuthHeader(), timeout: 3000 });
     return 'Optimal';
   } catch (error) {
@@ -350,24 +377,21 @@ const getJenkinsStatus = async () => {
   }
 };
 
-/**
- * Fetches real directory paths from the Jenkins server using a Groovy script.
- */
 const getFileSystemPaths = async () => {
   try {
-    // Groovy script to list directories recursively up to depth 3
+    // Groovy script to list directories recursively up to depth 5 across all roots
     const script = `
       def paths = []
-      def roots = ["/", "C:\\\\", "/var/www", "/opt", "/usr/share", "/home"]
+      def roots = File.listRoots().collect { it.absolutePath }
       
       def findDirs
       findDirs = { File dir, int depth ->
-          if (depth > 3 || paths.size() >= 100) return
+          if (depth > 5 || paths.size() >= 200) return
           try {
               if (dir.exists() && dir.isDirectory()) {
                   paths.add(dir.absolutePath)
                   dir.listFiles()?.each { child ->
-                      if (child.isDirectory() && !child.name.startsWith(".")) {
+                      if (child.isDirectory() && !child.name.startsWith(".") && !["Windows", "Program Files", "Program Files (x86)", "node_modules", "AppData"].contains(child.name)) {
                           findDirs(child, depth + 1)
                       }
                   }
@@ -379,7 +403,7 @@ const getFileSystemPaths = async () => {
       println paths.unique().join("\\n")
     `;
 
-    const url = `${BASE_URL}/scriptText`;
+    const url = `${await getBaseUrl()}/scriptText`;
     const params = new URLSearchParams();
     params.set('script', script);
 

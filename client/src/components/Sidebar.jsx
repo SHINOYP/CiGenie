@@ -4,12 +4,12 @@ import {
   LayoutDashboard,
   List,
   Settings,
-  BarChart,
-  SlidersHorizontal,
+  MonitorCog,
+  X,
 } from "lucide-react";
 import { getConfig } from "../services/api";
 
-const Sidebar = () => {
+const Sidebar = ({ isOpen, onClose }) => {
   const [username, setUsername] = useState("User");
 
   useEffect(() => {
@@ -28,89 +28,112 @@ const Sidebar = () => {
   };
 
   return (
-    <div className="flex flex-col w-64 h-screen border-r bg-surface border-slate-700">
-      <div className="p-6 border-b border-slate-700">
-        <h1 className="text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
-          CiGenie
-        </h1>
-        <p className="mt-1 text-xs text-gray-400">Platform Orchestrator</p>
-      </div>
+    <>
+      {/* Backdrop for mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden"
+          onClick={onClose}
+        />
+      )}
 
-      <nav className="flex-1 p-4 space-y-2">
-        <NavLink
-          to="/"
-          className={({ isActive }) =>
-            `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive
-                ? "bg-primary/10 text-primary"
-                : "text-gray-400 hover:bg-slate-800 hover:text-white"
-            }`
-          }
-        >
-          <LayoutDashboard size={20} />
-          <span>Dashboard</span>
-        </NavLink>
+      <div className={`
+        flex flex-col w-64 h-screen border-r bg-surface border-slate-700
+        fixed inset-y-0 left-0 z-50 transition-transform duration-300 transform
+        ${isOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:relative lg:translate-x-0
+      `}>
+        <div className="p-6 border-b border-slate-700 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+                CiGenie
+            </h1>
+            <p className="mt-1 text-sm text-gray-400">Platform Management</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-white lg:hidden">
+            <X size={20} />
+          </button>
+        </div>
 
-        <NavLink
-          to="/control"
-          className={({ isActive }) =>
-            `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive
-                ? "bg-primary/10 text-primary"
-                : "text-gray-400 hover:bg-slate-800 hover:text-white"
-            }`
-          }
-        >
-          <SlidersHorizontal size={20} />
-
-          <span>Control Panel</span>
-        </NavLink>
-        <NavLink
-          to="/projects"
-          className={({ isActive }) =>
-            `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive
-                ? "bg-primary/10 text-primary"
-                : "text-gray-400 hover:bg-slate-800 hover:text-white"
-            }`
-          }
-        >
-          <List size={20} />
-          <span>Projects</span>
-        </NavLink>
-
-        <div className="pt-4 mt-4 border-t border-slate-700">
-          <p className="px-4 mb-2 text-xs font-semibold tracking-wider text-gray-500 uppercase">
-            Settings
-          </p>
+        <nav className="flex-1 p-4 space-y-2">
           <NavLink
-            to="/settings"
+            to="/"
+            onClick={onClose}
             className={({ isActive }) =>
-              `flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${
+              `flex items-center space-x-4 px-4 py-4 rounded-xl transition-all ${
                 isActive
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-primary/10 text-primary shadow-sm"
                   : "text-gray-400 hover:bg-slate-800 hover:text-white"
               }`
             }
           >
-            <Settings size={20} />
-            <span>Configuration</span>
+            <LayoutDashboard size={22} />
+            <span className="font-medium">Dashboard</span>
           </NavLink>
-        </div>
-      </nav>
 
-      <div className="p-4 border-t border-slate-700">
-        <div className="flex items-center space-x-3">
-          <div className="flex items-center justify-center w-8 h-8 text-xs font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500">
-            {getInitials(username)}
+          <NavLink
+            to="/control"
+            onClick={onClose}
+            className={({ isActive }) =>
+              `flex items-center space-x-4 px-4 py-4 rounded-xl transition-all ${
+                isActive
+                  ? "bg-primary/10 text-primary shadow-sm"
+                  : "text-gray-400 hover:bg-slate-800 hover:text-white"
+              }`
+            }
+          >
+            <MonitorCog  size={22} />
+            <span className="font-medium">Control Panel</span>
+          </NavLink>
+          <NavLink
+            to="/projects"
+            onClick={onClose}
+            className={({ isActive }) =>
+              `flex items-center space-x-4 px-4 py-4 rounded-xl transition-all ${
+                isActive
+                  ? "bg-primary/10 text-primary shadow-sm"
+                  : "text-gray-400 hover:bg-slate-800 hover:text-white"
+              }`
+            }
+          >
+            <List size={22} />
+            <span className="font-medium">Execution History</span>
+          </NavLink>
+
+          <div className="pt-6 mt-6 border-t border-slate-700/50">
+            <p className="px-4 mb-3 text-[10px] font-bold tracking-[0.2em] text-gray-500 uppercase">
+              Application Settings
+            </p>
+            <NavLink
+              to="/settings"
+              onClick={onClose}
+              className={({ isActive }) =>
+                `flex items-center space-x-4 px-4 py-4 rounded-xl transition-all ${
+                  isActive
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-gray-400 hover:bg-slate-800 hover:text-white"
+                }`
+              }
+            >
+              <Settings size={22} />
+              <span className="font-medium">Configuration</span>
+            </NavLink>
           </div>
-          <div className="overflow-hidden">
-            <p className="text-sm font-medium truncate">{username}</p>
-            <p className="text-xs text-green-400">Online</p>
+        </nav>
+
+        <div className="p-6 border-t border-slate-700/50">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500 shadow-md">
+              {getInitials(username)}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-base font-semibold truncate leading-tight">{username}</p>
+              <p className="text-xs text-green-400 font-medium tracking-wide">Connected</p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

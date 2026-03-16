@@ -1,15 +1,40 @@
 const store = require('../models/store');
 
 /**
+ * Handlers for different intent actions
+ */
+const ACTION_HANDLERS = {
+  DEPLOY: (decision) => {
+    decision.jenkinsParams.ACTION = 'deploy';
+    decision.jenkinsParams.ENV = 'production'; // Default to production for simplicity
+    decision.reasoning.push('Standard deployment to production environment.');
+    decision.autoExecute = true;
+  },
+
+  TEST: (decision) => {
+    decision.jenkinsParams.ACTION = 'test';
+    decision.jenkinsParams.ENV = 'dev'; 
+    decision.reasoning.push('Running full test suite (Jest).');
+    decision.autoExecute = true;
+  },
+
+  REDEPLOY: (decision) => {
+    decision.jenkinsParams.ACTION = 'deploy';
+    decision.jenkinsParams.ENV = 'production';
+    decision.reasoning.push('Re-triggering deployment to production.');
+    decision.autoExecute = true;
+  }
+};
+
+/**
  * Analyzes the user's intent and generates an execution plan.
- * This is where the future LLM integration will happen.
  */
 const analyzeIntent = async (projectId, intent) => {
   const projects = await store.getProjects();
   const project = projects.find(p => p.id === projectId);
   if (!project) throw new Error('Project not found');
 
-  // Rule-based decision logic
+  // Initialize base decision structure
   const decision = {
     projectId,
     action: intent.action,
@@ -23,63 +48,20 @@ const analyzeIntent = async (projectId, intent) => {
       BRANCH: intent.branch || project.defaultBranch || 'main',
       OUTPUT_PATH: intent.outputPath || '/var/www/html'
     },
-    projectType: project.type
+    projectType: project.type,
+    confidenceScore: 1.0, // Default high confidence
+    approvalRequired: false,
+    autoExecute: false
   };
 
-  // Logic based on action
-  switch (intent.action) {
-    case 'DEPLOY':
-      decision.jenkinsParams.ACTION = 'deploy';
-      decision.jenkinsParams.ENV = intent.environment;
-      decision.reasoning.push(`Standard deployment to ${intent.environment}.`);
-
-      if (intent.environment === 'production') {
-        decision.confidenceScore = 0.85;
-        decision.reasoning.push('Production deployment requires approval.');
-        decision.riskFlags.push('PROD_DEPLOYMENT');
-        decision.approvalRequired = true;
-      } else {
-        decision.autoExecute = true;
-        decision.reasoning.push('Dev environment: Auto-execution enabled.');
-      }
-      break;
-
-    case 'ROLLBACK':
-      decision.jenkinsParams.ACTION = 'rollback';
-      decision.jenkinsParams.ENV = intent.environment;
-      decision.jenkinsParams.VERSION = intent.version || 'previous';
-      decision.reasoning.push('Reverting to last stable version.');
-      decision.riskFlags.push('ROLLBACK_ACTION');
-      if (intent.environment === 'production') {
-        decision.approvalRequired = true;
-      }
-      break;
-
-    case 'TEST':
-      decision.jenkinsParams.ACTION = 'test';
-      decision.jenkinsParams.ENV = 'dev'; // Force tests to dev/local-like context
-      decision.reasoning.push('Running full test suite (Jest).');
-      decision.autoExecute = true;
-      break;
-
-    case 'REDEPLOY':
-      decision.jenkinsParams.ACTION = 'deploy';
-      decision.jenkinsParams.ENV = intent.environment;
-      decision.reasoning.push(`Re-triggering deployment to ${intent.environment}.`);
-
-      if (intent.environment === 'production') {
-        decision.confidenceScore = 0.85;
-        decision.reasoning.push('Production redeployment requires approval.');
-        decision.riskFlags.push('PROD_REDEPLOYMENT');
-        decision.approvalRequired = true;
-      } else {
-        decision.autoExecute = true;
-      }
-      break;
-
-    default:
-      decision.confidenceScore = 0.5;
-      decision.reasoning.push('Unknown action type.');
+  // Find handler for the action
+  const handler = ACTION_HANDLERS[intent.action];
+  
+  if (handler) {
+    handler(decision, intent);
+  } else {
+    decision.confidenceScore = 0.5;
+    decision.reasoning.push(`Unknown action type: ${intent.action}`);
   }
 
   return decision;

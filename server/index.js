@@ -8,33 +8,15 @@ const configRoutes = require('./routes/config');
 const systemRoutes = require('./routes/system');
 const githubRoutes = require('./routes/github');
 
+const requestLogger = require('./middleware/requestLogger');
+const initialize = require('./config/initializer');
+
 const app = express();
 const PORT = process.env.PORT || 4040;
 
 app.use(cors());
 app.use(express.json());
-
-// Custom Colored Logger Middleware
-app.use((req, res, next) => {
-    const start = Date.now();
-    const { method, url } = req;
-
-    // Check status after response finishes
-    res.on('finish', () => {
-        const duration = Date.now() - start;
-        const status = res.statusCode;
-
-        let color = '\x1b[32m'; // Green for 2xx
-        if (status >= 300) color = '\x1b[36m'; // Cyan for 3xx
-        if (status >= 400) color = '\x1b[33m'; // Yellow for 4xx
-        if (status >= 500) color = '\x1b[31m'; // Red for 5xx
-        const reset = '\x1b[0m';
-
-        console.log(`${color}[${method}] ${url} - ${status} - ${duration}ms${reset}`);
-    });
-
-    next();
-});
+app.use(requestLogger);
 
 // Routes
 app.use('/api/webhooks', webhookRoutes);
@@ -46,36 +28,6 @@ app.use('/api/github', githubRoutes);
 app.get('/', (req, res) => {
     res.send('CiGenie Control Plane is running');
 });
-
-/**
- * Initializes services and syncs data on startup
- */
-const initialize = async () => {
-    try {
-        console.log('\x1b[36m%s\x1b[0m', '[System] Connecting to MongoDB...');
-        const connectDB = require('./config/db');
-        await connectDB();
-
-        console.log('\x1b[36m%s\x1b[0m', '[System] Initializing configuration...');
-        const githubService = require('./services/githubService');
-        const jenkinsExecutor = require('./services/executors/jenkinsExecutor');
-        const store = require('./models/store');
-
-        // Initial project fetch
-        await githubService.fetchProjects();
-        console.log('\x1b[32m%s\x1b[0m', '[System] GitHub project synchronization complete');
-
-        // Auto-sync Jenkins builds using the unified controller logic
-        console.log('\x1b[36m%s\x1b[0m', '[System] Syncing Jenkins execution history...');
-        const deploymentController = require('./controllers/deploymentController');
-        const syncedCount = await deploymentController.syncJenkinsHistory();
-
-        console.log('\x1b[32m%s\x1b[0m', `[System] Successfully synced ${syncedCount} legacy builds`);
-
-    } catch (error) {
-        console.error('\x1b[31m%s\x1b[0m', `[Critical] Initialization failed: ${error.message}`);
-    }
-};
 
 initialize();
 

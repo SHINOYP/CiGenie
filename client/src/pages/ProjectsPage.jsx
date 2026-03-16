@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Filter, Play, CheckCircle, XCircle, Clock, Terminal, Shield, Zap, RefreshCw, AlertTriangle, Trash2 } from 'lucide-react';
+import { Search, Filter, Play, CheckCircle, XCircle, Clock, Terminal, Shield, Zap, RefreshCw, AlertTriangle, Trash2, Sparkles } from 'lucide-react';
 import { getHistory, getProjects, deleteProjectJob } from '../services/api';
 import TerminalModal from '../components/TerminalModal';
 
@@ -102,9 +102,9 @@ const ProjectsPage = () => {
   };
 
   return (
-    <div className="flex h-[calc(100vh-120px)] gap-6 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-full lg:h-[calc(100vh-120px)] gap-6 overflow-hidden">
       {/* Sidebar: Active Jobs */}
-      <div className="w-72 flex flex-col bg-surface rounded-xl border border-slate-700 overflow-hidden">
+      <div className="w-full lg:w-72 flex flex-col bg-surface rounded-xl border border-slate-700 overflow-hidden shrink-0 max-h-[300px] lg:max-h-full">
         <div className="p-4 border-b border-slate-700 bg-slate-800/50">
            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-400">Projects</h3>
         </div>
@@ -112,65 +112,68 @@ const ProjectsPage = () => {
             {activeJobs.length === 0 ? (
                 <div className="p-8 text-center text-gray-500 text-sm">No active projects detected</div>
             ) : (
-                activeJobs.map(job => (
-                    <div 
-                        key={job.id}
-                        className={`group relative w-full text-left p-4 border-b border-slate-700/50 transition-all hover:bg-slate-800/50 ${selectedJob === job.id ? 'bg-primary/5 border-r-4 border-r-primary' : ''}`}
-                    >
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 divide-y lg:divide-y divide-slate-700/50">
+                    {activeJobs.map(job => (
                         <div 
-                            className="cursor-pointer"
-                            onClick={() => setSelectedJob(job.id)}
+                            key={job.id}
+                            className={`group relative w-full text-left p-4 transition-all hover:bg-slate-800/50 ${selectedJob === job.id ? 'bg-primary/5 border-l-4 lg:border-l-0 lg:border-r-4 border-primary' : ''}`}
                         >
-                            <div className="flex justify-between items-start mb-1 pr-6">
-                                <span className={`text-sm font-bold truncate ${selectedJob === job.id ? 'text-primary' : 'text-gray-200'}`}>{job.name}</span>
-                                <div className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                    job.lastStatus === 'SUCCESS' ? 'bg-success/20 text-success' : 'bg-danger/20 text-danger'
-                                }`}>
-                                    {job.lastStatus === 'SUCCESS' ? 'OK' : 'ERR'}
+                            <div 
+                                className="cursor-pointer"
+                                onClick={() => setSelectedJob(job.id)}
+                            >
+                                <div className="flex justify-between items-start mb-2 pr-8">
+                                    <span className={`text-base font-bold truncate ${selectedJob === job.id ? 'text-primary' : 'text-gray-200'}`}>{job.name}</span>
+                                    <div className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                        job.lastStatus === 'SUCCESS' ? 'bg-green-500/20 text-green-400' :
+                                        job.lastStatus === 'UNSTABLE' ? 'bg-yellow-500/20 text-yellow-400' :
+                                        'bg-red-500/20 text-red-400'
+                                    }`}>
+                                        {job.lastStatus === 'SUCCESS' ? 'Stable' : job.lastStatus === 'UNSTABLE' ? 'Warning' : 'Error'}
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-4 text-xs text-gray-400">
+                                    <span className="flex items-center"><Clock size={12} className="mr-1.5" /> {formatTimeAgo(job.lastDate)}</span>
+                                    <span className="font-bold uppercase tracking-widest text-[10px] bg-slate-700/50 px-2 py-0.5 rounded text-gray-500">
+                                        {(builds.find(b => b.projectId === job.id)?.plan?.type || 'NODE')}
+                                    </span>
                                 </div>
                             </div>
-                            <div className="flex items-center space-x-3 text-[10px] text-gray-500">
-                                <span className="flex items-center"><Clock size={10} className="mr-1" /> {formatTimeAgo(job.lastDate)}</span>
-                                <span>•</span>
-                                <span className="px-1 bg-primary/20 text-primary rounded-[2px] font-bold text-[8px] tracking-widest uppercase">
-                                    {(builds.find(b => b.projectId === job.id)?.plan?.type || 'NODE')}
-                                </span>
-                            </div>
-                        </div>
 
-                        {/* Delete Toggle */}
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteJob(job.id, job.name);
-                            }}
-                            disabled={deleting === job.id}
-                            className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-red-500 transition-all ${deleting === job.id ? 'animate-pulse opacity-100' : ''}`}
-                            title="Delete project configuration and history"
-                        >
-                            {deleting === job.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
-                    </div>
-                ))
+                            {/* Delete Toggle */}
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteJob(job.id, job.name);
+                                }}
+                                disabled={deleting === job.id}
+                                className={`absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover:opacity-100 hover:bg-red-500/20 text-red-500 transition-all ${deleting === job.id ? 'animate-pulse opacity-100' : ''}`}
+                                title="Delete project configuration and history"
+                            >
+                                {deleting === job.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                        </div>
+                    ))}
+                </div>
             )}
         </div>
       </div>
 
       {/* Main Content: History */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex justify-between items-center mb-4">
-            <div>
-              <h2 className="text-xl font-bold">{selectedJob ? (projects[selectedJob] || selectedJob) : 'Selection Required'}</h2>
-              <p className="text-gray-500 text-xs text-balance">Execution history and diagnostic metrics.</p>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+            <div className="min-w-0">
+              <h2 className="text-2xl font-bold truncate leading-tight">{selectedJob ? (projects[selectedJob] || selectedJob) : 'Selection Required'}</h2>
+              <p className="text-gray-400 text-sm mt-1">Full history and status reporting for this project.</p>
             </div>
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                 <input 
                     type="text" 
-                    placeholder="Filter results..." 
+                    placeholder="Search history..." 
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="bg-surface border border-slate-700 rounded-lg pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:border-primary w-48"
+                    className="bg-surface border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm focus:outline-none focus:border-primary w-64 shadow-inner"
                 />
             </div>
         </div>
@@ -178,13 +181,13 @@ const ProjectsPage = () => {
         <div className="flex-1 bg-surface rounded-xl border border-slate-700 overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-800/50 text-gray-400 text-[10px] uppercase font-bold tracking-widest border-b border-slate-700">
+                    <thead className="bg-slate-800/50 text-gray-400 text-xs uppercase font-bold tracking-[0.2em] border-b border-slate-700">
                         <tr>
-                            <th className="px-6 py-3">ID</th>
-                            <th className="px-6 py-3">Action</th>
-                            <th className="px-6 py-3">Target</th>
-                            <th className="px-6 py-3">Status / Metrics</th>
-                            <th className="px-6 py-3 text-right">Logs</th>
+                            <th className="px-6 py-5">History ID</th>
+                            <th className="px-6 py-5">Action Type</th>
+                            <th className="px-6 py-5">Source Branch</th>
+                            <th className="px-6 py-5">Status Report</th>
+                            <th className="px-6 py-5 text-right">Details</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700 text-sm text-balance">
@@ -203,68 +206,58 @@ const ProjectsPage = () => {
                         ) : (
                             filteredBuilds.map((build) => (
                                 <tr key={build.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-6">
                                         <div className="flex flex-col">
-                                            <span className="font-mono text-primary text-xs">
-                                                #{build.jenkinsBuildId || build.id.split('_').pop()}
+                                            <span className="font-bold text-primary text-sm">
+                                                Build No. {build.jenkinsBuildId || build.id.split('_').pop()}
                                             </span>
-                                            <span className="text-[10px] text-gray-500">{formatTimeAgo(build.startTime)}</span>
+                                            <span className="text-xs text-gray-400 font-medium mt-1">{formatTimeAgo(build.startTime)}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 lowercase">
-                                        <div className="flex items-center space-x-2">
+                                    <td className="px-6 py-6">
+                                        <div className="flex items-center space-x-3">
                                             {(() => {
                                                 const action = (build.plan?.action || build.params?.ACTION || 'DEPLOY').toUpperCase();
-                                                if (action === 'TEST') return <Shield size={14} className="text-green-500" />;
-                                                if (action === 'ROLLBACK') return <RefreshCw size={14} className="text-red-500" />;
-                                                return <Zap size={14} className="text-blue-500" />;
+                                                if (action === 'TEST') return <Shield size={18} className="text-green-500" />;
+                                                return <Zap size={18} className="text-blue-500" />;
                                             })()}
-                                            <span className="uppercase text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-gray-300">
+                                            <span className="uppercase text-xs font-bold px-3 py-1 bg-slate-800 rounded-lg border border-slate-700 text-gray-300 tracking-wide">
                                                 {build.plan?.action || build.params?.ACTION || 'Build'}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-6">
                                         <div className="flex flex-col">
-                                            <span className="text-xs font-medium text-gray-200">
+                                            <span className="text-sm font-semibold text-gray-200">
                                                 {build.plan?.jenkinsParams?.BRANCH || build.params?.BRANCH || 'main'}
                                             </span>
-                                            <span className="text-[10px] text-gray-500 uppercase">
-                                                {build.plan?.jenkinsParams?.ENV || build.params?.ENV || 'dev'}
-                                            </span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4">
+                                    <td className="px-6 py-6">
                                         <div className="flex items-center space-x-3">
-                                            <div className={`inline-flex items-center space-x-1.5 px-2 py-1 rounded-full text-[10px] font-bold ${
+                                            <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
                                                 build.status === 'SUCCESS' ? 'bg-success/10 text-success' :
                                                 build.status === 'FAILED' ? 'bg-danger/10 text-danger' : 
-                                                build.status === 'UNSTABLE' ? 'bg-warning/20 text-warning border border-warning/30' :
+                                                build.status === 'UNSTABLE' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
                                                 'bg-warning/10 text-warning'
                                             }`}>
-                                                {build.status === 'SUCCESS' && <CheckCircle size={10} />}
-                                                {build.status === 'FAILED' && <XCircle size={10} />}
-                                                {(build.status === 'UNSTABLE') && <AlertTriangle size={10} />}
-                                                <span>{build.status === 'UNSTABLE' ? 'TEST FAIL' : build.status}</span>
+                                                {build.status === 'SUCCESS' && <CheckCircle size={14} />}
+                                                {build.status === 'FAILED' && <XCircle size={14} />}
+                                                {(build.status === 'UNSTABLE') && <AlertTriangle size={14} />}
+                                                <span className="tracking-wide">{build.status}</span>
                                             </div>
-                                            
-                                            {build.testSummary && (
-                                                <div className="flex items-center space-x-2 text-[10px] font-mono border-l border-slate-700 pl-3">
-                                                    <span className="text-success">{build.testSummary.passed}P</span>
-                                                    {build.testSummary.failed > 0 && <span className="text-danger">{build.testSummary.failed}F</span>}
-                                                </div>
-                                            )}
                                         </div>
                                     </td>
-                                    <td className="px-6 py-4 text-right">
+                                    <td className="px-6 py-6 text-right">
                                         <button 
                                             onClick={() => {
                                                 setActiveBuildId(build.id);
                                                 setShowTerminal(true);
                                             }}
-                                            className="p-2 hover:bg-primary/20 text-primary rounded-lg transition-colors"
+                                            className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all font-bold text-xs uppercase tracking-widest flex items-center float-right"
                                         >
-                                            <Terminal size={14} />
+                                            <Terminal size={14} className="mr-2" />
+                                            Log View
                                         </button>
                                     </td>
                                 </tr>

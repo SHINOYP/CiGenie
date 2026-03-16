@@ -64,48 +64,48 @@ const BuildDetails = () => {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-6">
-        <Link to="/" className="text-gray-400 hover:text-white flex items-center mb-4 transition-colors">
-          <ArrowLeft size={16} className="mr-2" />
-          Back to Control Plane
+        <Link to="/" className="text-gray-400 hover:text-white flex items-center mb-6 transition-colors text-sm font-medium tracking-wide">
+          <ArrowLeft size={18} className="mr-2" />
+          Return to Control Plane
         </Link>
-        <div className="flex justify-between items-start">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-4">
             <div>
-                <div className="flex items-center space-x-4">
-                    <h1 className="text-3xl font-bold">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
                         {execution.plan?.action} <span className="text-gray-500">to</span> {execution.plan?.targetEnv}
                     </h1>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1 ${
-                        execution.status === 'SUCCESS' ? 'bg-success/10 text-success' :
-                        execution.status === 'FAILED' ? 'bg-danger/10 text-danger' :
-                        'bg-yellow-500/10 text-yellow-500'
+                    <span className={`w-fit px-4 py-1.5 rounded-full text-sm font-bold flex items-center space-x-2 border-2 ${
+                        execution.status === 'SUCCESS' ? 'bg-success/10 text-success border-success/20' :
+                        execution.status === 'FAILED' ? 'bg-danger/10 text-danger border-danger/20' :
+                        'bg-yellow-500/10 text-yellow-500 border-yellow-500/20'
                     }`}>
-                        {execution.status === 'SUCCESS' ? <CheckCircle size={14} /> : 
-                         execution.status === 'FAILED' ? <XCircle size={14} /> : <Clock size={14} />}
-                        <span>{execution.status}</span>
+                        {execution.status === 'SUCCESS' ? <CheckCircle size={16} /> : 
+                         execution.status === 'FAILED' ? <XCircle size={16} /> : <Clock size={16} />}
+                        <span className="tracking-widest uppercase">{execution.status}</span>
                     </span>
                 </div>
-                <p className="text-gray-400 mt-2 flex items-center space-x-4">
-                    <span>Project: <b>{execution.plan?.projectId}</b></span>
+                <div className="text-gray-400 mt-3 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm font-medium">
+                    <span>Project: <b className="text-white">{execution.plan?.projectId}</b></span>
                     {execution.plan?.projectType && (
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider ${
+                        <span className={`px-3 py-0.5 rounded-full text-xs font-bold tracking-[0.1em] ${
                             execution.plan.projectType === 'REACT' ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 
                             execution.plan.projectType === 'NODE' ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-gray-700 text-gray-400'
                         }`}>
                             {execution.plan.projectType}
                         </span>
                     )}
-                    <span>•</span>
-                    <span>ID: <span className="font-mono text-gray-300">{execution.id}</span></span>
-                    <span>•</span>
+                    <span className="hidden sm:inline text-gray-700">•</span>
+                    <span>Reference: <span className="font-mono text-gray-300">{execution.id?.substring(0, 12)}...</span></span>
+                    <span className="hidden sm:inline text-gray-700">•</span>
                     <span>{new Date(execution.startTime).toLocaleString()}</span>
-                </p>
+                </div>
             </div>
-            <div className="flex space-x-3">
+            <div className="flex space-x-3 w-full md:w-auto">
                 {execution.status === 'FAILED' && (
                     <button 
                         onClick={handleRetry}
                         disabled={retrying}
-                        className="bg-primary hover:bg-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white flex items-center space-x-2"
+                        className="w-full md:w-auto bg-primary hover:bg-blue-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors text-white flex items-center justify-center space-x-2"
                     >
                         <Play size={16} />
                         <span>{retrying ? 'Retrying...' : 'Retry Intent'}</span>
@@ -118,20 +118,17 @@ const BuildDetails = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
             <div className="bg-[#0c131f] rounded-xl border border-slate-700 overflow-hidden shadow-2xl">
-                <div className="bg-slate-800/80 px-4 py-2 flex items-center justify-between border-b border-slate-700">
-                    <div className="flex items-center space-x-2">
-                        <div className="flex space-x-1.5">
-                            <div className="w-3 h-3 rounded-full bg-red-500/50" />
-                            <div className="w-3 h-3 rounded-full bg-yellow-500/50" />
-                            <div className="w-3 h-3 rounded-full bg-green-500/50" />
+                <div className="bg-slate-800/80 px-6 py-3 flex items-center justify-between border-b border-slate-700">
+                    <div className="flex items-center space-x-3">
+                        <div className="flex space-x-2">
+                            <div className="w-4 h-4 rounded-full bg-red-500/60" />
+                            <div className="w-4 h-4 rounded-full bg-yellow-500/60" />
+                            <div className="w-4 h-4 rounded-full bg-green-500/60" />
                         </div>
-                        <span className="text-[10px] text-gray-500 font-mono uppercase tracking-widest ml-2">Live Console Output</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 font-mono">
-                        {execution.status === 'IN_PROGRESS' ? 'STREAMING...' : 'COMPLETED'}
+                        <span className="text-xs text-gray-400 font-bold uppercase tracking-[0.2em] ml-3">Real-time Pipeline Logs</span>
                     </div>
                 </div>
-                <div className="p-4 h-[500px] overflow-y-auto font-mono text-xs text-gray-300 leading-relaxed custom-scrollbar" ref={logsRef}>
+                <div className="p-6 h-[600px] overflow-y-auto font-mono text-sm text-gray-300 leading-relaxed custom-scrollbar bg-black/40" ref={logsRef}>
                     {execution.logs?.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-600 space-y-4">
                              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />

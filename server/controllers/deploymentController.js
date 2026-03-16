@@ -2,6 +2,7 @@ const decisionService = require("../services/decisionService");
 const jenkinsExecutor = require("../services/executors/jenkinsExecutor");
 const store = require("../models/store");
 const githubService = require("../services/githubService");
+const aiService = require("../services/aiService");
 
 // Simple UUID fallback
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -86,8 +87,28 @@ const executePlan = async (req, res) => {
     await store.addExecution(executionRecord);
 
     console.log(
-      `[DeploymentController] Triggering Jenkins job: ${plan.jenkinsJob}`,
+      `[DeploymentController] Triggering Jenkins job: ${plan.jenkinsJob || 'UNDEFINED'}`,
     );
+
+    // Safety check before calling executor
+    if (!plan.jenkinsJob) {
+        const projects = await store.getProjects();
+        const project = projects.find(p => p.id === plan.projectId);
+        if (project && project.jenkinsJob) {
+            console.warn(`[DeploymentController] Warning: plan.jenkinsJob was missing. Using project default: ${project.jenkinsJob}`);
+            plan.jenkinsJob = project.jenkinsJob;
+        } else if (project && project.name) {
+            plan.jenkinsJob = `pipeline-${project.name}`;
+            console.warn(`[DeploymentController] Warning: plan.jenkinsJob and project.jenkinsJob were missing. Reconstructing: ${plan.jenkinsJob}`);
+        } else {
+            console.error('[DeploymentController] Error: Could not determine Jenkins job name. Aborting trigger.');
+            executionRecord.status = 'FAILED';
+            executionRecord.logs.push('ERROR: Could not determine Jenkins job name. Please ensure the project is correctly synced with GitHub.');
+            await store.updateExecution(executionRecord);
+            return { executionId, success: false, error: 'Undefined job name' };
+        }
+    }
+
     try {
       const jobExists = await jenkinsExecutor.checkJobExists(plan.jenkinsJob);
 
@@ -135,11 +156,25 @@ const executePlan = async (req, res) => {
       pollExecution(executionRecord, plan.jenkinsJob);
     } catch (jErr) {
       console.error("Jenkins Trigger Failed:", jErr);
-      executionRecord.status = "FAILED";
       executionRecord.logs.push(
         `[${new Date().toISOString()}] [ERROR] Failed to trigger Jenkins: ${jErr.message}`,
       );
+
+      // Try to get AI summary for the failure
+      try {
+        const aiSummary = await aiService.summarizeLogs({
+          logs: executionRecord.logs,
+          status: 'FAILED',
+          action: plan.action || 'build'
+        });
+        if (aiSummary) executionRecord.aiSummary = aiSummary;
+      } catch (aiErr) {
+        console.warn('[DeploymentController] Early AI summary failed:', aiErr.message);
+      }
+
       executionRecord.endTime = new Date();
+      // Persist the failure state to DB
+      await store.updateExecution(executionRecord);
     }
 
     res.json({ executionId, status: executionRecord.status });
@@ -186,8 +221,14 @@ const pollExecution = async (executionRecord, jobName) => {
         if (logText) executionRecord.logs = logText.split("\n");
 
         if (buildDetails.result) {
-          executionRecord.status =
-            buildDetails.result === "SUCCESS" ? "SUCCESS" : "FAILED";
+          // Map Jenkins result to our status — UNSTABLE means tests ran but failed
+          if (buildDetails.result === 'SUCCESS') {
+            executionRecord.status = 'SUCCESS';
+          } else if (buildDetails.result === 'UNSTABLE') {
+            executionRecord.status = 'UNSTABLE';
+          } else {
+            executionRecord.status = 'FAILED';
+          }
           executionRecord.endTime = new Date();
 
           const testResults = {
@@ -214,23 +255,38 @@ const pollExecution = async (executionRecord, jobName) => {
           } else if (executionRecord.status === "FAILED") {
             testResults.recommendation =
               "Build failed. Check logs for syntax errors.";
+          } else if (executionRecord.status === "UNSTABLE") {
+            testResults.recommendation = "Some tests are failing. Fix them before deploying.";
           }
 
           executionRecord.testResults = testResults;
 
+          // Get AI summary of the logs
+          try {
+            const aiSummary = await aiService.summarizeLogs({
+              logs: executionRecord.logs,
+              status: executionRecord.status,
+              action: executionRecord.plan?.action || 'build'
+            });
+            if (aiSummary) executionRecord.aiSummary = aiSummary;
+          } catch (aiErr) {
+            console.warn('[Poller] AI summary failed:', aiErr.message);
+          }
+
           // PERSIST completion to DB
-          await store.addExecution(executionRecord);
+          await store.updateExecution(executionRecord);
 
           clearInterval(interval);
         } else {
           executionRecord.status = "IN_PROGRESS";
-          // Optional: persist in-progress logs? Probably too noisy for every 5s poll.
+          // NEW: Persist in-progress state (logs + status) so frontend can show live updates
+          await store.updateExecution(executionRecord);
         }
       }
     } catch (err) {
       console.error(`[Poller] Error: ${err.message}`);
     }
-  }, 5000);
+  }, 3000); // Faster polling (3s) for real-time feel
 };
 
 // GET /api/deploy/execution/:id
@@ -285,8 +341,8 @@ const deleteProjectJob = async (req, res) => {
       }
     }
 
-    // 2. Clear local execution history for this project
-    await store.clearProjectHistory(projectId);
+    // 2. Clear local project configuration and history
+    await store.deleteProject(projectId);
 
     res.json({
       success: true,

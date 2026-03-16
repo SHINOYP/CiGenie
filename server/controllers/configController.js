@@ -10,8 +10,23 @@ const getConfig = async (req, res) => {
 // POST /api/config
 const updateConfig = async (req, res) => {
     try {
-        const { githubUsername, githubToken } = req.body;
-        await store.setConfig({ githubUsername, githubToken });
+        const { 
+            githubUsername, 
+            githubToken, 
+            jenkinsUrl, 
+            jenkinsUser, 
+            jenkinsToken, 
+            geminiApiKey 
+        } = req.body;
+        
+        await store.setConfig({ 
+            githubUsername, 
+            githubToken, 
+            jenkinsUrl, 
+            jenkinsUser, 
+            jenkinsToken, 
+            geminiApiKey 
+        });
 
         // Trigger a re-fetch of projects with new credentials
         await githubService.fetchProjects();

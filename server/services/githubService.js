@@ -89,11 +89,12 @@ const fetchProjects = async () => {
         return projects;
 
     } catch (error) {
-        console.error('[GithubService] Error fetching repos:', error.message);
-        if (error.response) {
-            console.error('Status:', error.response.status);
+        if (error.response && error.response.status === 401) {
+            console.error('\x1b[31m%s\x1b[0m', '[GithubService] Auth Failed (401): Your GITHUB_TOKEN in .env is likely invalid or expired.');
+        } else {
+            console.error('[GithubService] Error fetching repos:', error.message);
         }
-        return [];
+        return null; // Return null to indicate failure
     }
 };
 

@@ -12,7 +12,7 @@ const setProjects = async (newProjects) => {
     await Project.findOneAndUpdate(
       { id: projectData.id },
       projectData,
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
     );
   }
 };
@@ -27,19 +27,37 @@ const getConfig = async () => {
     // Fallback to Env if not in DB
     return {
       githubUsername: process.env.GITHUB_USERNAME || '',
-      githubToken: process.env.GITHUB_TOKEN || ''
+      githubToken: process.env.GITHUB_TOKEN || '',
+      jenkinsUrl: process.env.JENKINS_URL || '',
+      jenkinsUser: process.env.JENKINS_USER || '',
+      jenkinsToken: process.env.JENKINS_TOKEN || '',
+      geminiApiKey: process.env.GEMINI_API_KEY || ''
     };
   }
   return config;
 };
 
 const setConfig = async (newConfig) => {
-  await Config.findOneAndUpdate({}, newConfig, { upsert: true, new: true });
+  await Config.findOneAndUpdate({}, newConfig, { upsert: true, returnDocument: 'after' });
 };
 
 const addExecution = async (exec) => {
   const newExec = new Execution(exec);
   await newExec.save();
+
+  // Update project deployment status if it's a deployment action
+  if (exec.plan && exec.plan.projectId) {
+    await updateProjectStatusFromExec(exec.plan.projectId);
+  }
+};
+
+// Upsert: update an existing execution by id, or insert if new
+const updateExecution = async (exec) => {
+  await Execution.findOneAndUpdate(
+    { id: exec.id },
+    exec,
+    { upsert: true, returnDocument: 'after', setDefaultsOnInsert: true }
+  );
 
   // Update project deployment status if it's a deployment action
   if (exec.plan && exec.plan.projectId) {
@@ -53,6 +71,30 @@ const getExecution = async (id) => {
 
 const clearProjectHistory = async (projectId) => {
   await Execution.deleteMany({ projectId });
+  await updateProjectStatusFromExec(projectId);
+};
+
+const deleteProject = async (projectId) => {
+  // Clear execution history
+  await Execution.deleteMany({ projectId });
+
+  // Reset project status and clear Jenkins job reference
+  await Project.updateOne({ id: projectId }, {
+    jenkinsJob: null,
+    deployed: {
+      dev: false,
+      devPath: null,
+      devDate: null,
+      production: false,
+      productionPath: null,
+      productionDate: null,
+      lastTestStatus: null,
+      lastTestDate: null,
+      lastTestSummary: null,
+      isLocked: false,
+      lockedPath: null
+    }
+  });
 };
 
 // Helper to keep project status in sync with history
@@ -61,21 +103,38 @@ const updateProjectStatusFromExec = async (projectId) => {
   const project = await Project.findOne({ id: projectId });
   if (!project) return;
 
-  const status = { ...project.deployed };
+  // Initialize status with defaults instead of merging with old state
+  // This ensures that if history is cleared, the project status is reset.
+  const status = {
+    dev: false,
+    devPath: null,
+    devDate: null,
+    production: false,
+    productionPath: null,
+    productionDate: null,
+    lastTestStatus: null,
+    lastTestDate: null,
+    lastTestSummary: null,
+    isLocked: false,
+    lockedPath: null
+  };
 
-  // Update dev/prod status based on executions
-  ['dev', 'production'].forEach(env => {
-    const lastDeployment = executions.find(e =>
-      e.status === 'SUCCESS' &&
-      e.plan?.targetEnv === env &&
-      ['DEPLOY', 'REDEPLOY', 'deploy'].includes(e.plan?.action)
-    );
-    if (lastDeployment) {
-      status[env] = true;
-      status[`${env}Path`] = lastDeployment.plan?.jenkinsParams?.OUTPUT_PATH;
-      status[`${env}Date`] = lastDeployment.endTime || lastDeployment.startTime;
-    }
-  });
+  // Update dev/prod status based  // Deploy status (consolidated)
+  const lastDeployment = executions.find(e =>
+    ['DEPLOY', 'deploy', 'REDEPLOY', 'redeploy'].includes(e.plan?.action) &&
+    e.status === 'SUCCESS'
+  );
+
+  if (lastDeployment) {
+    status.production = true;
+    status.productionPath = lastDeployment.plan?.jenkinsParams?.OUTPUT_PATH;
+    status.productionDate = lastDeployment.endTime || lastDeployment.startTime;
+
+    // Also set dev for legacy compatibility if needed, or just leave it
+    status.dev = true;
+    status.devPath = status.productionPath;
+    status.devDate = status.productionDate;
+  }
 
   // Last test status
   const lastTest = executions.find(e =>
@@ -105,7 +164,9 @@ module.exports = {
   getConfig,
   setConfig,
   addExecution,
+  updateExecution,
   getExecution,
+  deleteProject,
   clearProjectHistory,
   updateProjectStatusFromExec
 };
