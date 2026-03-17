@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate} from "react-router-dom";
 import {
   LayoutDashboard,
   List,
@@ -21,7 +21,12 @@ const Sidebar = ({ isOpen, onClose }) => {
       })
       .catch((err) => console.error("Sidebar config fetch failed:", err));
   }, []);
+  
 
+const handleLogout = () => {
+  localStorage.removeItem("loggedInUser");
+  navigate("/login");
+};
   const getInitials = (name) => {
     if (!name) return "U";
     return name.substring(0, 2).toUpperCase();
@@ -136,5 +141,4 @@ const Sidebar = ({ isOpen, onClose }) => {
     </>
   );
 };
-
 export default Sidebar;

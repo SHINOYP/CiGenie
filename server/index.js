@@ -7,6 +7,9 @@ const deployRoutes = require('./routes/deployments');
 const configRoutes = require('./routes/config');
 const systemRoutes = require('./routes/system');
 const githubRoutes = require('./routes/github');
+const authRoutes = require("./routes/auth");
+
+
 
 const requestLogger = require('./middleware/requestLogger');
 const initialize = require('./config/initializer');
@@ -24,6 +27,8 @@ app.use('/api/deploy', deployRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/github', githubRoutes);
+app.use("/api/auth", authRoutes);
+
 
 app.get('/', (req, res) => {
     res.send('CiGenie Control Plane is running');

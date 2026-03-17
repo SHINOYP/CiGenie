@@ -11,7 +11,16 @@ body {
   @apply bg-background text-white antialiased;
   line-height: 1.6;
 }
+/* Add this to your CSS file */
+input,
+textarea {
+  @apply bg-gray-800 text-white border border-gray-600 rounded p-2 placeholder-gray-400;
+}
 
+input::placeholder,
+textarea::placeholder {
+  @apply text-gray-400;
+}
 /* Scrollbar for Webkit */
 
 .custom-scrollbar::-webkit-scrollbar {
