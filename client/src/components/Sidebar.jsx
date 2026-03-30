@@ -5,12 +5,14 @@ import {
   List,
   Settings,
   MonitorCog,
+  LogOut,
   X,
 } from "lucide-react";
 import { getConfig } from "../services/api";
 
 const Sidebar = ({ isOpen, onClose }) => {
   const [username, setUsername] = useState("User");
+  const navigate = useNavigate();
 
   useEffect(() => {
     getConfig()
@@ -127,14 +129,25 @@ const handleLogout = () => {
         </nav>
 
         <div className="p-6 border-t border-slate-700/50">
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500 shadow-md">
-              {getInitials(username)}
+          <div className="flex flex-col items-center justify-between">
+              <button 
+              onClick={handleLogout}
+              className="flex items-center space-x-2 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500 hover:text-white transition-all duration-300 border border-red-500/20 group"
+              title="Logout"
+            >
+              <LogOut size={16} className="group-hover:translate-x-0.5 transition-transform" />
+              <span className="text-xs font-bold uppercase tracking-wider">Logout</span>
+            </button>
+            <div className="flex items-center mt-4 space-x-4">
+              <div className="flex items-center justify-center w-10 h-10 text-sm font-bold text-white rounded-full bg-gradient-to-tr from-primary to-cyan-500 shadow-md">
+                {getInitials(username)}
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-base font-semibold truncate leading-tight">{username}</p>
+                <p className="text-xs text-green-400 font-medium tracking-wide">Connected</p>
+              </div>
             </div>
-            <div className="overflow-hidden">
-              <p className="text-base font-semibold truncate leading-tight">{username}</p>
-              <p className="text-xs text-green-400 font-medium tracking-wide">Connected</p>
-            </div>
+          
           </div>
         </div>
       </div>
