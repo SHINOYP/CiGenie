@@ -1,6 +1,7 @@
-import axios from 'axios';
+import axios from "axios";
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL =
+  " https://547e-2402-3a80-1e0b-483b-8101-e54c-2e5d-1c60.ngrok-free.app/api";
 
 export const getProjects = async () => {
   const response = await axios.get(`${API_URL}/deploy/projects`);
@@ -10,7 +11,7 @@ export const getProjects = async () => {
 export const analyzeIntent = async (projectId, intent) => {
   const response = await axios.post(`${API_URL}/deploy/intent`, {
     projectId,
-    ...intent
+    ...intent,
   });
   return response.data;
 };
@@ -50,7 +51,8 @@ export const getSystemRecommendations = async () => {
   return response.data;
 };
 
-export const getLivePaths = () => axios.get(`${API_URL}/system/paths`).then(res => res.data);
+export const getLivePaths = () =>
+  axios.get(`${API_URL}/system/paths`).then((res) => res.data);
 
 export const syncJenkinsStatus = async () => {
   const response = await axios.post(`${API_URL}/deploy/sync-jenkins`);
@@ -76,11 +78,17 @@ export const syncGithubProjects = async () => {
 
 // Authentication
 export const registerUser = async (email, password) => {
-  const response = await axios.post(`${API_URL}/auth/register`, { email, password });
+  const response = await axios.post(`${API_URL}/auth/register`, {
+    email,
+    password,
+  });
   return response.data;
 };
 
 export const loginUser = async (email, password) => {
-  const response = await axios.post(`${API_URL}/auth/login`, { email, password });
+  const response = await axios.post(`${API_URL}/auth/login`, {
+    email,
+    password,
+  });
   return response.data;
 };
