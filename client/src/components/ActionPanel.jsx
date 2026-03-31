@@ -326,7 +326,7 @@ const ActionPanel = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 mb-6 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 mb-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {(() => {
           const proj = projects.find((p) => p.id === selectedProject);
           const isDeployed = proj?.deployed?.[environment];
@@ -438,7 +438,7 @@ const ActionPanel = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-8 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mb-8">
                   <div>
                     <span className="block text-sm font-bold text-gray-500 uppercase tracking-widest mb-1">
                       Environment
@@ -526,7 +526,7 @@ const ActionPanel = () => {
                         : plan.action === "TEST"
                           ? "bg-green-600 hover:bg-green-700"
                           : "bg-primary hover:bg-blue-600 shadow-lg shadow-blue-500/20"
-                    } text-white px-10 py-4 rounded-2xl text-lg font-bold transition-all transform active:scale-95 flex items-center space-x-3 disabled:opacity-40 disabled:cursor-not-allowed`}
+                    } text-white px-6 sm:px-10 py-3 sm:py-4 rounded-2xl text-base sm:text-lg font-bold transition-all transform active:scale-95 flex items-center justify-center space-x-3 disabled:opacity-40 disabled:cursor-not-allowed w-full sm:w-auto`}
                   >
                     {executing ? (
                       <RefreshCw size={22} className="animate-spin" />

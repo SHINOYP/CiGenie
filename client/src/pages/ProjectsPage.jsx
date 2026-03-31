@@ -181,13 +181,13 @@ const ProjectsPage = () => {
         <div className="flex-1 bg-surface rounded-xl border border-slate-700 overflow-hidden flex flex-col">
             <div className="overflow-x-auto">
                 <table className="w-full text-left">
-                    <thead className="bg-slate-800/50 text-gray-400 text-xs uppercase font-bold tracking-[0.2em] border-b border-slate-700">
+                    <thead className="bg-slate-800/50 text-gray-400 text-[10px] sm:text-xs uppercase font-bold tracking-[0.2em] border-b border-slate-700">
                         <tr>
-                            <th className="px-6 py-5">History ID</th>
-                            <th className="px-6 py-5">Action Type</th>
-                            <th className="px-6 py-5">Source Branch</th>
-                            <th className="px-6 py-5">Status Report</th>
-                            <th className="px-6 py-5 text-right">Details</th>
+                            <th className="px-4 sm:px-6 py-4 sm:py-5">History</th>
+                            <th className="px-4 sm:px-6 py-4 sm:py-5 hidden md:table-cell">Action</th>
+                            <th className="px-4 sm:px-6 py-4 sm:py-5 hidden lg:table-cell">Source</th>
+                            <th className="px-4 sm:px-6 py-4 sm:py-5">Status</th>
+                            <th className="px-4 sm:px-6 py-4 sm:py-5 text-right">Logs</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700 text-sm text-balance">
@@ -206,15 +206,20 @@ const ProjectsPage = () => {
                         ) : (
                             filteredBuilds.map((build) => (
                                 <tr key={build.id} className="hover:bg-slate-800/30 transition-colors">
-                                    <td className="px-6 py-6">
+                                    <td className="px-4 sm:px-6 py-4 sm:py-6">
                                         <div className="flex flex-col">
                                             <span className="font-bold text-primary text-sm">
-                                                Build No. {build.jenkinsBuildId || build.id.split('_').pop()}
+                                                #{build.jenkinsBuildId || build.id.split('_').pop()}
                                             </span>
-                                            <span className="text-xs text-gray-400 font-medium mt-1">{formatTimeAgo(build.startTime)}</span>
+                                            <span className="text-[10px] sm:text-xs text-gray-400 font-medium mt-1">{formatTimeAgo(build.startTime)}</span>
+                                            <div className="md:hidden mt-2">
+                                                <span className="uppercase text-[10px] font-bold px-2 py-0.5 bg-slate-800 rounded border border-slate-700 text-gray-400">
+                                                    {build.plan?.action || build.params?.ACTION || 'Build'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-6">
+                                    <td className="px-6 py-6 hidden md:table-cell">
                                         <div className="flex items-center space-x-3">
                                             {(() => {
                                                 const action = (build.plan?.action || build.params?.ACTION || 'DEPLOY').toUpperCase();
@@ -226,38 +231,35 @@ const ProjectsPage = () => {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-6">
+                                    <td className="px-6 py-6 hidden lg:table-cell">
                                         <div className="flex flex-col">
                                             <span className="text-sm font-semibold text-gray-200">
                                                 {build.plan?.jenkinsParams?.BRANCH || build.params?.BRANCH || 'main'}
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-6">
-                                        <div className="flex items-center space-x-3">
-                                            <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm ${
-                                                build.status === 'SUCCESS' ? 'bg-success/10 text-success' :
-                                                build.status === 'FAILED' ? 'bg-danger/10 text-danger' : 
-                                                build.status === 'UNSTABLE' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
-                                                'bg-warning/10 text-warning'
-                                            }`}>
-                                                {build.status === 'SUCCESS' && <CheckCircle size={14} />}
-                                                {build.status === 'FAILED' && <XCircle size={14} />}
-                                                {(build.status === 'UNSTABLE') && <AlertTriangle size={14} />}
-                                                <span className="tracking-wide">{build.status}</span>
-                                            </div>
+                                    <td className="px-4 sm:px-6 py-4 sm:py-6">
+                                        <div className={`inline-flex items-center space-x-2 px-2 sm:px-3 py-1 rounded-full text-[10px] sm:text-xs font-bold shadow-sm ${
+                                            build.status === 'SUCCESS' ? 'bg-success/10 text-success' :
+                                            build.status === 'FAILED' ? 'bg-danger/10 text-danger' : 
+                                            build.status === 'UNSTABLE' ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20' :
+                                            'bg-warning/10 text-warning'
+                                        }`}>
+                                            {build.status === 'SUCCESS' && <CheckCircle size={12} className="sm:size-3.5" />}
+                                            {build.status === 'FAILED' && <XCircle size={12} className="sm:size-3.5" />}
+                                            <span className="tracking-wide">{build.status}</span>
                                         </div>
                                     </td>
-                                    <td className="px-6 py-6 text-right">
+                                    <td className="px-4 sm:px-6 py-4 sm:py-6 text-right">
                                         <button 
                                             onClick={() => {
                                                 setActiveBuildId(build.id);
                                                 setShowTerminal(true);
                                             }}
-                                            className="px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl transition-all font-bold text-xs uppercase tracking-widest flex items-center float-right"
+                                            className="p-2 sm:px-4 sm:py-2 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg sm:rounded-xl transition-all font-bold text-[10px] sm:text-xs uppercase tracking-widest inline-flex items-center justify-center"
                                         >
-                                            <Terminal size={14} className="mr-2" />
-                                            Log View
+                                            <Terminal size={14} className="sm:mr-2" />
+                                            <span className="hidden sm:inline">Logs</span>
                                         </button>
                                     </td>
                                 </tr>

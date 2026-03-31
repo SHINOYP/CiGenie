@@ -30,13 +30,13 @@ const Layout = () => {
 
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
-      <main className="flex-1 p-4 lg:p-8 overflow-y-auto h-screen mt-16 lg:mt-0">
+      <main className={`flex-1 p-4 lg:p-8 overflow-y-auto h-screen mt-16 lg:mt-0 ${activeExecutionId ? 'pb-24 lg:pb-8' : ''}`}>
         <Outlet context={{ startTracking, activeExecutionId }} />
       </main>
 
-      {/* Persistent Roadmap Portal */}
+      {/* Persistent Roadmap Portal (Floating Widget) */}
       {activeExecutionId && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 z-40 lg:bottom-6 lg:right-6 lg:left-auto lg:w-96 lg:p-0 shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40 w-[340px] max-w-[calc(100vw-2rem)] shadow-2xl animate-in slide-in-from-bottom-4 duration-300">
            <BuildRoadmap 
               executionId={activeExecutionId} 
               action={activeAction} 
